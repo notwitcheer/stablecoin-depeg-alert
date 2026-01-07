@@ -1,0 +1,89 @@
+"""
+Alert System for Stablecoin Depeg Notifications
+Handles alert formatting and sending to Telegram channels
+"""
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, List
+
+from telegram import Bot
+from core.models import StablecoinPeg, PegStatus
+from config import ALERT_CHANNEL_ID, FREE_COOLDOWN
+
+logger = logging.getLogger(__name__)
+
+# Track last alert time per coin to avoid spam
+last_alerts: Dict[str, datetime] = {}
+
+def format_alert_message(pegs: List[StablecoinPeg], triggered_by: StablecoinPeg) -> str:
+    """Format a depeg alert message"""
+
+    # Status emoji mapping
+    status_emoji = {
+        PegStatus.STABLE: "✅",
+        PegStatus.WARNING: "⚠️",
+        PegStatus.DEPEG: "🔴",
+        PegStatus.CRITICAL: "🚨"
+    }
+
+    # Header
+    msg = f"🚨 DEPEG ALERT\n\n"
+    msg += f"{status_emoji[triggered_by.status]} {triggered_by.symbol}: "
+    msg += f"${triggered_by.price:.4f} ({triggered_by.deviation_percent:+.2f}%)\n\n"
+
+    # All stablecoins status
+    msg += "📊 All Stablecoins:\n"
+    for peg in sorted(pegs, key=lambda x: abs(x.deviation_percent), reverse=True):
+        emoji = status_emoji[peg.status]
+        msg += f"{emoji} {peg.symbol}: ${peg.price:.4f} ({peg.deviation_percent:+.2f}%)\n"
+
+    # Footer
+    msg += f"\n🕐 {datetime.utcnow().strftime('%H:%M UTC')}\n"
+    msg += "🔗 stablepeg.xyz"
+
+    return msg
+
+def format_status_message(pegs: List[StablecoinPeg]) -> str:
+    """Format a status check message"""
+    status_emoji = {
+        PegStatus.STABLE: "✅",
+        PegStatus.WARNING: "⚠️",
+        PegStatus.DEPEG: "🔴",
+        PegStatus.CRITICAL: "🚨"
+    }
+
+    # Overall status
+    has_issues = any(p.status != PegStatus.STABLE for p in pegs)
+    header = "🔴 Issues Detected" if has_issues else "🟢 All Stablecoins Stable"
+
+    msg = f"{header}\n\n"
+
+    # List all stablecoins
+    for peg in sorted(pegs, key=lambda x: abs(x.deviation_percent), reverse=True):
+        emoji = status_emoji[peg.status]
+        msg += f"{emoji} {peg.symbol}: ${peg.price:.4f} ({peg.deviation_percent:+.2f}%)\n"
+
+    msg += f"\n🕐 Updated: {datetime.utcnow().strftime('%H:%M UTC')}"
+
+    return msg
+
+def is_on_cooldown(symbol: str) -> bool:
+    """Check if a stablecoin is still on alert cooldown"""
+    if symbol not in last_alerts:
+        return False
+
+    cooldown_time = last_alerts[symbol] + timedelta(minutes=FREE_COOLDOWN)
+    return datetime.utcnow() < cooldown_time
+
+def update_cooldown(symbol: str):
+    """Update the last alert time for a stablecoin"""
+    last_alerts[symbol] = datetime.utcnow()
+    logger.info(f"Alert cooldown updated for {symbol}")
+
+async def send_to_channel(bot: Bot, channel_id: str, message: str):
+    """Send message to Telegram channel"""
+    try:
+        await bot.send_message(chat_id=channel_id, text=message)
+        logger.info(f"Alert sent to channel {channel_id}")
+    except Exception as e:
+        logger.error(f"Failed to send alert to channel {channel_id}: {e}")

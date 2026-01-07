@@ -1,0 +1,14 @@
+# Telegram Bot Framework
+python-telegram-bot>=20.0
+
+# HTTP Client for API calls
+httpx>=0.24.0
+
+# Async Task Scheduling
+apscheduler>=3.10.0
+
+# Environment Variables
+python-dotenv>=1.0.0
+
+# Optional: For enhanced logging
+structlog>=23.0.0
