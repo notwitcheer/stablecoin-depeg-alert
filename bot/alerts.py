@@ -83,7 +83,17 @@ def update_cooldown(symbol: str):
 async def send_to_channel(bot: Bot, channel_id: str, message: str):
     """Send message to Telegram channel"""
     try:
+        # Security: Validate message length to prevent abuse
+        if len(message) > 4096:  # Telegram message limit
+            logger.warning("Alert message too long, truncating")
+            message = message[:4090] + "..."
+
+        # Security: Basic sanitization (though Telegram handles most)
+        if message.strip() == "":
+            logger.warning("Attempted to send empty alert message")
+            return
+
         await bot.send_message(chat_id=channel_id, text=message)
-        logger.info(f"Alert sent to channel {channel_id}")
+        logger.info(f"Alert sent to channel {channel_id[:10]}...")  # Don't log full channel ID
     except Exception as e:
-        logger.error(f"Failed to send alert to channel {channel_id}: {e}")
+        logger.error(f"Failed to send alert to channel: {type(e).__name__}")  # Don't expose channel ID or full error

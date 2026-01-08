@@ -5,6 +5,10 @@ Handles all bot commands like /start, /status, /check, etc.
 import logging
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler
+from core.security import (
+    is_rate_limited, validate_stablecoin_symbol,
+    sanitize_error_message, security_monitor
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +34,16 @@ Stay safe out there! 🛡️
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /status command - show all stablecoin pegs"""
+    user_id = update.effective_user.id if update.effective_user else 0
+
+    # Security: Rate limiting
+    if is_rate_limited(user_id):
+        await update.message.reply_text("⏰ Too many requests. Please wait a moment before trying again.")
+        security_monitor.log_security_event("rate_limit", user_id)
+        security_monitor.increment_metric("rate_limit_violations")
+        return
+
+    logger.info(f"User {user_id} requested status check")
     await update.message.reply_text("🔍 Checking all stablecoin pegs...")
 
     try:
@@ -41,24 +55,47 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not pegs:
             await update.message.reply_text("❌ Unable to fetch price data. Please try again later.")
+            logger.warning(f"No peg data available for user {user_id} status request")
+            security_monitor.increment_metric("api_errors")
             return
 
         # Format and send status message
         message = format_status_message(pegs)
         await update.message.reply_text(message)
+        logger.info(f"Status response sent to user {user_id}")
 
     except Exception as e:
         await update.message.reply_text("❌ Error checking stablecoin pegs. Please try again later.")
-        logger.error(f"Status command error: {e}")
+        logger.error(f"Status command error for user {user_id}: {sanitize_error_message(e)}")
+        security_monitor.increment_metric("api_errors")
 
 async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /check [SYMBOL] command - check specific stablecoin"""
+    user_id = update.effective_user.id if update.effective_user else 0
+
+    # Security: Rate limiting
+    if is_rate_limited(user_id):
+        await update.message.reply_text("⏰ Too many requests. Please wait a moment before trying again.")
+        security_monitor.log_security_event("rate_limit", user_id)
+        security_monitor.increment_metric("rate_limit_violations")
+        return
+
     args = context.args
     if not args:
         await update.message.reply_text("Usage: /check USDC\n\nAvailable: USDT, USDC, DAI, USDS, FRAX, TUSD, USDP, PYUSD")
         return
 
-    symbol = args[0].upper()
+    # Input validation
+    symbol = args[0].upper().strip()
+
+    # Security: Validate symbol format
+    if not validate_stablecoin_symbol(symbol):
+        await update.message.reply_text("❌ Invalid symbol format. Please use valid stablecoin symbols only.")
+        security_monitor.log_security_event("invalid_input", user_id, f"Invalid symbol: {symbol}")
+        security_monitor.increment_metric("invalid_inputs")
+        return
+
+    logger.info(f"User {user_id} requested check for {symbol}")
     await update.message.reply_text(f"🔍 Checking {symbol}...")
 
     try:
@@ -85,7 +122,8 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         await update.message.reply_text(f"❌ Error checking {symbol}. Please verify the symbol and try again.")
-        logger.error(f"Check command error for {symbol}: {e}")
+        logger.error(f"Check command error for {symbol} from user {user_id}: {sanitize_error_message(e)}")
+        security_monitor.increment_metric("api_errors")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command"""

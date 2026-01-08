@@ -45,11 +45,19 @@ LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 # Validation
 def validate_config():
     """Validate required configuration"""
-    if not BOT_TOKEN:
-        raise ValueError("TELEGRAM_BOT_TOKEN environment variable is required")
+    if not BOT_TOKEN or BOT_TOKEN.strip() == "":
+        raise ValueError("TELEGRAM_BOT_TOKEN environment variable is required and cannot be empty")
 
-    if not ALERT_CHANNEL_ID:
-        raise ValueError("ALERT_CHANNEL_ID environment variable is required")
+    if not ALERT_CHANNEL_ID or ALERT_CHANNEL_ID.strip() == "":
+        raise ValueError("ALERT_CHANNEL_ID environment variable is required and cannot be empty")
+
+    # Validate bot token format (basic check)
+    if not BOT_TOKEN.count(":") >= 1:
+        raise ValueError("TELEGRAM_BOT_TOKEN appears to have invalid format")
+
+    # Validate channel ID format (should be numeric or start with @)
+    if not (ALERT_CHANNEL_ID.startswith("-") or ALERT_CHANNEL_ID.startswith("@") or ALERT_CHANNEL_ID.isdigit()):
+        raise ValueError("ALERT_CHANNEL_ID should be a channel ID (-100...) or username (@channel)")
 
     print("✅ Configuration validated successfully")
 

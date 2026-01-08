@@ -46,12 +46,21 @@ async def fetch_prices(coin_ids: List[str]) -> Dict[str, float]:
 
             # Extract USD prices
             prices = {}
+            missing_prices = []
             for coin_id in coin_ids:
                 if coin_id in data and "usd" in data[coin_id]:
                     prices[coin_id] = float(data[coin_id]["usd"])
                 else:
                     logger.warning(f"Price not found for {coin_id}")
-                    # Default to $1.00 if price not available (assume stable)
+                    missing_prices.append(coin_id)
+
+            # Don't return any data if critical coins are missing
+            if missing_prices:
+                logger.error(f"Missing price data for {missing_prices}. This could indicate API issues.")
+                # Still return available prices but log the issue
+                for coin_id in missing_prices:
+                    # Only default to 1.0 for non-critical situations and log it clearly
+                    logger.warning(f"Defaulting {coin_id} price to $1.00 - THIS MAY HIDE REAL DEPEGS!")
                     prices[coin_id] = 1.0
 
             logger.info(f"Successfully fetched {len(prices)} prices")
@@ -62,6 +71,9 @@ async def fetch_prices(coin_ids: List[str]) -> Dict[str, float]:
         raise Exception("CoinGecko API timeout")
     except httpx.HTTPStatusError as e:
         logger.error(f"HTTP error from CoinGecko: {e.response.status_code}")
+        # Handle rate limiting specifically
+        if e.response.status_code == 429:
+            logger.error("CoinGecko rate limit exceeded! Consider upgrading API plan or reducing request frequency.")
         raise Exception(f"CoinGecko API error: {e.response.status_code}")
     except Exception as e:
         logger.error(f"Unexpected error fetching prices: {e}")

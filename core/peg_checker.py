@@ -4,7 +4,7 @@ Core logic for determining stablecoin peg status
 """
 import logging
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from core.models import StablecoinPeg, PegStatus
 from core.prices import fetch_prices
@@ -101,7 +101,7 @@ async def check_all_pegs() -> List[StablecoinPeg]:
         logger.error(f"Error checking pegs: {e}")
         return []
 
-async def check_specific_peg(symbol: str) -> StablecoinPeg:
+async def check_specific_peg(symbol: str) -> Optional[StablecoinPeg]:
     """
     Check peg status for a specific stablecoin
 
