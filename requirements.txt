@@ -37,6 +37,10 @@ pytest>=7.4.0
 pytest-asyncio>=0.21.0
 faker>=20.1.0           # Test data generation
 
+# HTTP Server & Monitoring
+aiohttp>=3.9.0          # HTTP server for monitoring endpoints
+psutil>=5.9.0           # System resource monitoring
+
 # Production Utilities
 uvloop>=0.19.0          # High-performance event loop
 gunicorn>=21.2.0        # WSGI HTTP Server
