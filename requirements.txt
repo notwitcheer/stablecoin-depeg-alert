@@ -10,5 +10,33 @@ apscheduler>=3.10.0
 # Environment Variables
 python-dotenv>=1.0.0
 
-# Optional: For enhanced logging
+# Database & ORM
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0  # PostgreSQL adapter
+alembic>=1.13.0         # Database migrations
+
+# Caching & Session Management
+redis>=5.0.0
+
+# Monitoring & Error Tracking
+prometheus-client>=0.19.0
+sentry-sdk>=1.40.0
+
+# Enhanced Logging & Metrics
 structlog>=23.0.0
+
+# Data Validation
+pydantic>=2.5.0
+
+# Async Database Operations
+asyncpg>=0.29.0         # Async PostgreSQL driver
+databases>=0.8.0        # Async database interface
+
+# Testing & Development
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+faker>=20.1.0           # Test data generation
+
+# Production Utilities
+uvloop>=0.19.0          # High-performance event loop
+gunicorn>=21.2.0        # WSGI HTTP Server
