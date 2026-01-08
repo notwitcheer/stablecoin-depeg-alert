@@ -1,0 +1,146 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: depeg_postgres
+    environment:
+      POSTGRES_DB: depeg_alert
+      POSTGRES_USER: depeg_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-depeg_secure_password_2024}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U depeg_user -d depeg_alert"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: depeg_redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secure_password_2024}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # DepegAlert Bot
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: depeg_bot
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://depeg_user:${POSTGRES_PASSWORD:-depeg_secure_password_2024}@postgres:5432/depeg_alert
+
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_secure_password_2024}@redis:6379
+
+      # Telegram (required - set in .env)
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      ALERT_CHANNEL_ID: ${ALERT_CHANNEL_ID}
+      PREMIUM_CHANNEL_ID: ${PREMIUM_CHANNEL_ID}
+
+      # Production Configuration
+      LOG_LEVEL: INFO
+      CHECK_INTERVAL: 60
+      FREE_COOLDOWN: 30
+      PREMIUM_COOLDOWN: 5
+
+      # Monitoring
+      MONITORING_HOST: 0.0.0.0
+      MONITORING_PORT: 8080
+
+      # Feature Flags
+      ENABLE_PREMIUM_FEATURES: true
+      ENABLE_MONITORING: true
+      ENABLE_METRICS: true
+
+      # External Services
+      WEB_URL: ${WEB_URL:-https://stablepeg.xyz}
+    ports:
+      - "8080:8080"  # Monitoring endpoints
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - bot_logs:/app/logs
+
+  # Monitoring Stack (Optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: depeg_prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - bot
+    restart: unless-stopped
+    profiles: ["monitoring"]
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: depeg_grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    profiles: ["monitoring"]
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  bot_logs:
+    driver: local
+
+networks:
+  default:
+    name: depeg_network
