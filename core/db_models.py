@@ -2,7 +2,7 @@
 Database Models for DepegAlert Bot
 SQLAlchemy models for users, alerts, preferences, and system data
 """
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from enum import Enum as PyEnum
 from typing import Optional, List
 
