@@ -2,11 +2,12 @@
 Security Configuration and Utilities
 Centralized security settings and validation functions
 """
+
+import logging
 import os
 import re
-import logging
-from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ SECURITY_CONFIG = {
 # User rate limiting
 user_request_counts: Dict[int, list] = {}
 
+
 def is_rate_limited(user_id: int) -> bool:
     """Check if user is rate limited"""
     if not SECURITY_CONFIG["rate_limit_window"]:
@@ -35,7 +37,8 @@ def is_rate_limited(user_id: int) -> bool:
     # Clean old requests
     if user_id in user_request_counts:
         user_request_counts[user_id] = [
-            req_time for req_time in user_request_counts[user_id]
+            req_time
+            for req_time in user_request_counts[user_id]
             if req_time > window_start
         ]
     else:
@@ -51,13 +54,14 @@ def is_rate_limited(user_id: int) -> bool:
     user_request_counts[user_id].append(now)
     return False
 
+
 def validate_stablecoin_symbol(symbol: str) -> bool:
     """Validate stablecoin symbol format"""
     if not symbol or not isinstance(symbol, str):
         return False
 
     # Security: Only allow alphanumeric characters
-    if not re.match(r'^[A-Z]+$', symbol):
+    if not re.match(r"^[A-Z]+$", symbol):
         return False
 
     # Check length
@@ -66,14 +70,16 @@ def validate_stablecoin_symbol(symbol: str) -> bool:
 
     return True
 
+
 def validate_telegram_bot_token(token: Optional[str]) -> bool:
     """Validate Telegram bot token format"""
     if not token:
         return False
 
     # Basic format check: number:alphanumeric_string
-    pattern = r'^\d+:[A-Za-z0-9_-]{35}$'
+    pattern = r"^\d+:[A-Za-z0-9_-]{35}$"
     return bool(re.match(pattern, token))
+
 
 def validate_channel_id(channel_id: Optional[str]) -> bool:
     """Validate Telegram channel ID format"""
@@ -81,9 +87,9 @@ def validate_channel_id(channel_id: Optional[str]) -> bool:
         return False
 
     # Channel ID can be numeric (with optional -), or @username
-    if channel_id.startswith('@'):
+    if channel_id.startswith("@"):
         # Username format: @username (alphanumeric + underscores)
-        pattern = r'^@[A-Za-z0-9_]+$'
+        pattern = r"^@[A-Za-z0-9_]+$"
         return bool(re.match(pattern, channel_id))
     else:
         # Numeric channel ID (can be negative)
@@ -93,6 +99,7 @@ def validate_channel_id(channel_id: Optional[str]) -> bool:
         except ValueError:
             return False
 
+
 def sanitize_error_message(error: Exception) -> str:
     """Sanitize error message for logging"""
     if not SECURITY_CONFIG["sanitize_error_messages"]:
@@ -100,6 +107,7 @@ def sanitize_error_message(error: Exception) -> str:
 
     # Only return error type, not detailed message that might contain sensitive info
     return f"{type(error).__name__}"
+
 
 def sanitize_log_data(data: Any) -> Any:
     """Sanitize data before logging"""
@@ -110,12 +118,10 @@ def sanitize_log_data(data: Any) -> Any:
         return data
     elif isinstance(data, dict):
         # Remove sensitive keys
-        sensitive_keys = {'token', 'password', 'key', 'secret', 'credential'}
-        return {
-            k: "***" if k.lower() in sensitive_keys else v
-            for k, v in data.items()
-        }
+        sensitive_keys = {"token", "password", "key", "secret", "credential"}
+        return {k: "***" if k.lower() in sensitive_keys else v for k, v in data.items()}
     return data
+
 
 def validate_environment_variables() -> Dict[str, bool]:
     """Validate all security-relevant environment variables"""
@@ -131,10 +137,13 @@ def validate_environment_variables() -> Dict[str, bool]:
 
     # Check database URL doesn't use default credentials in production
     db_url = os.getenv("DATABASE_URL", "")
-    results["db_security"] = not ("password@localhost" in db_url and
-                                 os.getenv("ENVIRONMENT", "development") == "production")
+    results["db_security"] = not (
+        "password@localhost" in db_url
+        and os.getenv("ENVIRONMENT", "development") == "production"
+    )
 
     return results
+
 
 def get_security_recommendations() -> list:
     """Get security recommendations based on current configuration"""
@@ -163,6 +172,7 @@ def get_security_recommendations() -> list:
 
     return recommendations
 
+
 # Security monitoring
 class SecurityMonitor:
     """Monitor security events and metrics"""
@@ -173,7 +183,7 @@ class SecurityMonitor:
             "rate_limit_violations": 0,
             "invalid_inputs": 0,
             "api_errors": 0,
-            "start_time": datetime.utcnow()
+            "start_time": datetime.utcnow(),
         }
 
     def log_security_event(self, event_type: str, user_id: int, details: str = ""):
@@ -182,7 +192,7 @@ class SecurityMonitor:
             "type": event_type,
             "user_id": user_id,
             "details": details,
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.utcnow(),
         }
         self.events.append(event)
 
@@ -205,8 +215,9 @@ class SecurityMonitor:
             "uptime_hours": uptime.total_seconds() / 3600,
             "metrics": self.metrics.copy(),
             "recent_events": len(self.events),
-            "recommendations": get_security_recommendations()
+            "recommendations": get_security_recommendations(),
         }
+
 
 # Global security monitor instance
 security_monitor = SecurityMonitor()

@@ -1,0 +1,31 @@
+# Development Dependencies for DepegAlert Bot
+# Install with: pip install -r requirements-dev.txt
+
+# Code Formatting
+black>=23.0.0              # Code formatter
+isort>=5.12.0              # Import sorter
+
+# Code Linting
+flake8>=6.0.0              # Style guide checker
+flake8-docstrings>=1.7.0   # Docstring linting
+flake8-import-order>=0.18  # Import order checking
+flake8-bugbear>=23.0.0     # Additional checks
+
+# Type Checking
+mypy>=1.7.0                # Static type checker
+types-requests>=2.31.0     # Type stubs for requests
+
+# Security Linting
+bandit>=1.7.0              # Security linter
+safety>=2.3.0              # Dependency vulnerability checker
+
+# Pre-commit Hooks (Optional)
+pre-commit>=3.5.0          # Git pre-commit hooks
+
+# Documentation
+pydocstyle>=6.3.0          # Docstring style checker
+
+# Development Tools
+ipdb>=0.13.0               # Debugger
+rich>=13.7.0               # Better terminal output
+watchdog>=3.0.0            # File watching for auto-reload

@@ -1,0 +1,159 @@
+# Development Docker Compose Configuration
+# Optimized for local development with hot reloading and debugging
+version: '3.8'
+
+services:
+  # PostgreSQL Database (Development)
+  postgres-dev:
+    image: postgres:16-alpine
+    container_name: depeg_postgres_dev
+    environment:
+      POSTGRES_DB: depeg_alert_dev
+      POSTGRES_USER: depeg_dev
+      POSTGRES_PASSWORD: dev_password_123
+      POSTGRES_INITDB_ARGS: "--auth-host=trust --auth-local=trust"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5433:5432"  # Use different port to avoid conflicts
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U depeg_dev -d depeg_alert_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # Redis Cache (Development)
+  redis-dev:
+    image: redis:7-alpine
+    container_name: depeg_redis_dev
+    command: redis-server --appendonly yes  # No password for dev
+    volumes:
+      - redis_dev_data:/data
+    ports:
+      - "6380:6379"  # Use different port to avoid conflicts
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # DepegAlert Bot (Development)
+  bot-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: depeg_bot_dev
+    depends_on:
+      postgres-dev:
+        condition: service_healthy
+      redis-dev:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://depeg_dev:dev_password_123@postgres-dev:5432/depeg_alert_dev
+
+      # Redis
+      REDIS_URL: redis://redis-dev:6379
+
+      # Telegram (set in .env.dev or .env)
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      ALERT_CHANNEL_ID: ${ALERT_CHANNEL_ID}
+      PREMIUM_CHANNEL_ID: ${PREMIUM_CHANNEL_ID}
+
+      # Development Configuration
+      LOG_LEVEL: DEBUG
+      ENVIRONMENT: development
+      CHECK_INTERVAL: 30  # Faster checks for testing
+      FREE_COOLDOWN: 5    # Shorter cooldown for testing
+      PREMIUM_COOLDOWN: 1
+
+      # Development Features
+      ENABLE_PREMIUM_FEATURES: true
+      ENABLE_MONITORING: false  # Disable for simpler dev setup
+      ENABLE_METRICS: false
+
+      # Debug Features
+      DEBUG_MODE: true
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
+    volumes:
+      # Mount source code for hot reloading
+      - .:/app
+      - bot_dev_logs:/app/logs
+    ports:
+      - "8081:8080"  # Different port for dev monitoring
+    restart: "no"  # Don't auto-restart in dev
+    stdin_open: true
+    tty: true
+    command: python -m bot.main
+
+  # Development Database Admin (Optional)
+  pgadmin-dev:
+    image: dpage/pgadmin4:latest
+    container_name: depeg_pgadmin_dev
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@depegalert.dev
+      PGADMIN_DEFAULT_PASSWORD: dev_admin_123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - pgadmin_dev_data:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres-dev
+    restart: unless-stopped
+    profiles: ["admin"]
+
+  # Redis Commander for Redis GUI (Optional)
+  redis-commander-dev:
+    image: rediscommander/redis-commander:latest
+    container_name: depeg_redis_commander_dev
+    environment:
+      REDIS_HOSTS: redis-dev:redis-dev:6379
+    ports:
+      - "8082:8081"
+    depends_on:
+      - redis-dev
+    restart: unless-stopped
+    profiles: ["admin"]
+
+  # Quick Database Migration Service
+  migrate-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: depeg_migrate_dev
+    depends_on:
+      postgres-dev:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://depeg_dev:dev_password_123@postgres-dev:5432/depeg_alert_dev
+      LOG_LEVEL: INFO
+    volumes:
+      - .:/app
+    command: python -c "
+      from core.database import init_database;
+      print('🔄 Running database migrations...');
+      init_database();
+      print('✅ Database migrations complete')
+      "
+    profiles: ["migrate"]
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+  pgadmin_dev_data:
+    driver: local
+  bot_dev_logs:
+    driver: local
+
+networks:
+  default:
+    name: depeg_dev_network

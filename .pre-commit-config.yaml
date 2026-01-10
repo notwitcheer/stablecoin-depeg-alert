@@ -1,0 +1,133 @@
+# Pre-commit Configuration for DepegAlert Bot
+# Automatically runs code quality checks before commits
+# Install with: pre-commit install
+
+repos:
+  # Pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-json
+      - id: check-toml
+      - id: check-xml
+      - id: debug-statements
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+
+  # Security checks
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        additional_dependencies: ["gibberish-detector"]
+
+  # Python code formatting
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3.11
+        args: ["--config", "pyproject.toml"]
+
+  # Import sorting
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black", "--settings-path", "pyproject.toml"]
+
+  # Code linting
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.1.0
+    hooks:
+      - id: flake8
+        additional_dependencies:
+          - flake8-docstrings
+          - flake8-import-order
+          - flake8-bugbear
+        args: ["--config", ".flake8"]
+
+  # Type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-requests
+          - types-redis
+        args: ["--config-file", "pyproject.toml"]
+        exclude: ^(migrations/|tests/|docs/)
+
+  # Security linting
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        args: ["-r", ".", "-f", "json", "-o", "/tmp/bandit-report.json"]
+        exclude: ^tests/
+
+  # Dependency vulnerability checking
+  - repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+    rev: v1.3.2
+    hooks:
+      - id: python-safety-dependencies-check
+        files: requirements.*\.txt$
+
+  # Documentation
+  - repo: https://github.com/pycqa/pydocstyle
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        args: ["--config=pyproject.toml"]
+        exclude: ^(migrations/|tests/|docs/)
+
+  # YAML/Docker linting
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        args: ["-d", "relaxed"]
+
+  # Dockerfile linting
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.1-beta
+    hooks:
+      - id: hadolint-docker
+        args: ["--ignore", "DL3008", "--ignore", "DL3009"]
+
+  # Shell script linting
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.9.0.6
+    hooks:
+      - id: shellcheck
+        args: ["--severity=warning"]
+
+# Configuration for specific file types
+exclude: |
+  (?x)(
+    ^migrations/|
+    ^\.venv/|
+    ^venv/|
+    ^\.git/|
+    ^\.pytest_cache/|
+    ^\.mypy_cache/|
+    ^htmlcov/|
+    ^build/|
+    ^dist/|
+    \.pyc$|
+    \.pyo$
+  )
+
+# Fail fast - stop running hooks after first failure
+fail_fast: false
+
+# Run on all files when no specific files are provided
+default_stages: [commit, push]

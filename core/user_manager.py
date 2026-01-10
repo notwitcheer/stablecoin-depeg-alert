@@ -2,25 +2,37 @@
 User Management System
 Handles user registration, preferences, subscription tiers, and permissions
 """
+
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, List, Any
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 
 from core.database import get_db_session
 from core.db_models import (
-    User, UserPreference, UserTier, AlertCooldown,
-    get_user_by_telegram_id, create_user, get_user_preferences,
-    is_in_cooldown, update_cooldown
+    AlertCooldown,
+    User,
+    UserPreference,
+    UserTier,
+    create_user,
+    get_user_by_telegram_id,
+    get_user_preferences,
+    is_in_cooldown,
+    update_cooldown,
 )
 
 logger = logging.getLogger(__name__)
+
 
 class UserManager:
     """Manages user accounts, preferences, and permissions"""
 
     @staticmethod
-    def register_or_get_user(telegram_id: str, username: str = None,
-                           first_name: str = None, last_name: str = None) -> User:
+    def register_or_get_user(
+        telegram_id: str,
+        username: str = None,
+        first_name: str = None,
+        last_name: str = None,
+    ) -> User:
         """Register a new user or get existing user"""
         with get_db_session() as session:
             user = get_user_by_telegram_id(session, telegram_id)
@@ -46,7 +58,7 @@ class UserManager:
                     username=username,
                     first_name=first_name,
                     last_name=last_name,
-                    last_active=datetime.now(timezone.utc)
+                    last_active=datetime.now(timezone.utc),
                 )
 
                 # Create default preferences
@@ -65,7 +77,7 @@ class UserManager:
             alert_channels=["telegram"],
             excluded_stablecoins=[],
             priority_stablecoins=["USDT", "USDC", "DAI"],
-            max_alerts_per_hour=10
+            max_alerts_per_hour=10,
         )
         session.add(default_prefs)
         session.commit()
@@ -88,21 +100,42 @@ class UserManager:
                 "tier": user.tier.value,
                 "is_active": user.is_active,
                 "subscription_end": user.subscription_end,
-                "preferences": {
-                    "custom_threshold": preferences.custom_threshold if preferences else None,
-                    "enabled_tiers": preferences.enabled_tiers if preferences else [1, 2],
-                    "alert_channels": preferences.alert_channels if preferences else ["telegram"],
-                    "excluded_stablecoins": preferences.excluded_stablecoins if preferences else [],
-                    "priority_stablecoins": preferences.priority_stablecoins if preferences else [],
-                    "max_alerts_per_hour": preferences.max_alerts_per_hour if preferences else 10,
-                    "quiet_hours_start": preferences.quiet_hours_start if preferences else None,
-                    "quiet_hours_end": preferences.quiet_hours_end if preferences else None,
-                } if preferences else None
+                "preferences": (
+                    {
+                        "custom_threshold": (
+                            preferences.custom_threshold if preferences else None
+                        ),
+                        "enabled_tiers": (
+                            preferences.enabled_tiers if preferences else [1, 2]
+                        ),
+                        "alert_channels": (
+                            preferences.alert_channels if preferences else ["telegram"]
+                        ),
+                        "excluded_stablecoins": (
+                            preferences.excluded_stablecoins if preferences else []
+                        ),
+                        "priority_stablecoins": (
+                            preferences.priority_stablecoins if preferences else []
+                        ),
+                        "max_alerts_per_hour": (
+                            preferences.max_alerts_per_hour if preferences else 10
+                        ),
+                        "quiet_hours_start": (
+                            preferences.quiet_hours_start if preferences else None
+                        ),
+                        "quiet_hours_end": (
+                            preferences.quiet_hours_end if preferences else None
+                        ),
+                    }
+                    if preferences
+                    else None
+                ),
             }
 
     @staticmethod
-    def upgrade_user_tier(telegram_id: str, new_tier: UserTier,
-                         subscription_duration_days: int = 30) -> bool:
+    def upgrade_user_tier(
+        telegram_id: str, new_tier: UserTier, subscription_duration_days: int = 30
+    ) -> bool:
         """Upgrade user to a higher tier"""
         with get_db_session() as session:
             user = get_user_by_telegram_id(session, telegram_id)
@@ -120,7 +153,9 @@ class UserManager:
                 preferences = get_user_preferences(session, user.id)
                 if preferences:
                     preferences.enabled_tiers = [1, 2, 3]  # Access to all tiers
-                    preferences.max_alerts_per_hour = 50 if new_tier == UserTier.PREMIUM else 200
+                    preferences.max_alerts_per_hour = (
+                        50 if new_tier == UserTier.PREMIUM else 200
+                    )
 
             session.commit()
             logger.info(f"Upgraded user {telegram_id} to {new_tier.value}")
@@ -160,17 +195,20 @@ class UserManager:
 
         # Check if user has premium access
         if user_info["tier"] not in ["premium", "enterprise"]:
-            logger.warning(f"User {telegram_id} tried to set custom threshold without premium")
+            logger.warning(
+                f"User {telegram_id} tried to set custom threshold without premium"
+            )
             return False
 
         # Validate threshold range
         if not 0.01 <= threshold_percent <= 5.0:
-            logger.warning(f"Invalid threshold {threshold_percent}% for user {telegram_id}")
+            logger.warning(
+                f"Invalid threshold {threshold_percent}% for user {telegram_id}"
+            )
             return False
 
         return UserManager.update_user_preferences(
-            telegram_id,
-            custom_threshold=threshold_percent
+            telegram_id, custom_threshold=threshold_percent
         )
 
     @staticmethod
@@ -181,15 +219,14 @@ class UserManager:
             return 0.5  # Default free threshold
 
         custom_threshold = user_info["preferences"]["custom_threshold"]
-        if custom_threshold is not None and user_info["tier"] in ["premium", "enterprise"]:
+        if custom_threshold is not None and user_info["tier"] in [
+            "premium",
+            "enterprise",
+        ]:
             return custom_threshold
 
         # Default thresholds by tier
-        tier_thresholds = {
-            "free": 0.5,
-            "premium": 0.2,
-            "enterprise": 0.1
-        }
+        tier_thresholds = {"free": 0.5, "premium": 0.2, "enterprise": 0.1}
         return tier_thresholds.get(user_info["tier"], 0.5)
 
     @staticmethod
@@ -214,7 +251,10 @@ class UserManager:
         # Check quiet hours
         if user_info["preferences"]:
             prefs = user_info["preferences"]
-            if prefs["quiet_hours_start"] is not None and prefs["quiet_hours_end"] is not None:
+            if (
+                prefs["quiet_hours_start"] is not None
+                and prefs["quiet_hours_end"] is not None
+            ):
                 now_hour = datetime.now(timezone.utc).hour
                 start = prefs["quiet_hours_start"]
                 end = prefs["quiet_hours_end"]
@@ -273,12 +313,11 @@ class UserManager:
         cooldown_minutes = {
             UserTier.FREE: 30,
             UserTier.PREMIUM: 5,
-            UserTier.ENTERPRISE: 1
+            UserTier.ENTERPRISE: 1,
         }
 
         with get_db_session() as session:
-            update_cooldown(session, symbol, channel_id, tier,
-                          cooldown_minutes[tier])
+            update_cooldown(session, symbol, channel_id, tier, cooldown_minutes[tier])
 
     @staticmethod
     def get_user_statistics() -> Dict[str, int]:
@@ -287,29 +326,42 @@ class UserManager:
             total_users = session.query(User).count()
             active_users = session.query(User).filter(User.is_active == True).count()
             free_users = session.query(User).filter(User.tier == UserTier.FREE).count()
-            premium_users = session.query(User).filter(User.tier == UserTier.PREMIUM).count()
-            enterprise_users = session.query(User).filter(User.tier == UserTier.ENTERPRISE).count()
+            premium_users = (
+                session.query(User).filter(User.tier == UserTier.PREMIUM).count()
+            )
+            enterprise_users = (
+                session.query(User).filter(User.tier == UserTier.ENTERPRISE).count()
+            )
 
             return {
                 "total_users": total_users,
                 "active_users": active_users,
                 "free_users": free_users,
                 "premium_users": premium_users,
-                "enterprise_users": enterprise_users
+                "enterprise_users": enterprise_users,
             }
+
 
 class SubscriptionManager:
     """Handles subscription lifecycle and billing events"""
 
     @staticmethod
-    def activate_premium_subscription(telegram_id: str, duration_days: int = 30) -> bool:
+    def activate_premium_subscription(
+        telegram_id: str, duration_days: int = 30
+    ) -> bool:
         """Activate premium subscription for user"""
-        return UserManager.upgrade_user_tier(telegram_id, UserTier.PREMIUM, duration_days)
+        return UserManager.upgrade_user_tier(
+            telegram_id, UserTier.PREMIUM, duration_days
+        )
 
     @staticmethod
-    def activate_enterprise_subscription(telegram_id: str, duration_days: int = 365) -> bool:
+    def activate_enterprise_subscription(
+        telegram_id: str, duration_days: int = 365
+    ) -> bool:
         """Activate enterprise subscription for user"""
-        return UserManager.upgrade_user_tier(telegram_id, UserTier.ENTERPRISE, duration_days)
+        return UserManager.upgrade_user_tier(
+            telegram_id, UserTier.ENTERPRISE, duration_days
+        )
 
     @staticmethod
     def cancel_subscription(telegram_id: str) -> bool:
@@ -356,5 +408,9 @@ class SubscriptionManager:
             "is_expired": is_expired,
             "days_remaining": days_remaining,
             "subscription_end": subscription_end,
-            "custom_threshold": user_info["preferences"]["custom_threshold"] if user_info["preferences"] else None
+            "custom_threshold": (
+                user_info["preferences"]["custom_threshold"]
+                if user_info["preferences"]
+                else None
+            ),
         }

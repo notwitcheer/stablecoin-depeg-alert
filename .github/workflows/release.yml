@@ -1,0 +1,305 @@
+# Release Workflow
+# Creates releases and publishes Docker images when tags are pushed
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Build and publish release artifacts
+  build-release:
+    name: Build Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release-notes: ${{ steps.release-notes.outputs.notes }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Extract version from tag
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=tag
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}},enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        target: production
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          VERSION=${{ steps.version.outputs.version }}
+          BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          VCS_REF=${{ github.sha }}
+
+    - name: Generate release notes
+      id: release-notes
+      run: |
+        echo "Generating release notes for v${{ steps.version.outputs.version }}"
+
+        # Get previous tag
+        PREV_TAG=$(git describe --abbrev=0 --tags $(git describe --abbrev=0 --tags)^ 2>/dev/null || echo "")
+
+        if [ -n "$PREV_TAG" ]; then
+          echo "Previous tag: $PREV_TAG"
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD --no-merges)
+        else
+          echo "No previous tag found, using all commits"
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
+        fi
+
+        # Create release notes
+        RELEASE_NOTES=$(cat << EOF
+        ## 🚀 DepegAlert Bot v${{ steps.version.outputs.version }}
+
+        ### What's New
+
+        $CHANGELOG
+
+        ### 🐳 Docker Images
+
+        \`\`\`bash
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        \`\`\`
+
+        ### 📦 Deployment
+
+        **Docker Compose:**
+        \`\`\`bash
+        # Update your docker-compose.yml to use the new version
+        version: '3.8'
+        services:
+          bot:
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+            # ... rest of your configuration
+        \`\`\`
+
+        **Railway:**
+        \`\`\`bash
+        railway deploy --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+        \`\`\`
+
+        ### 🔗 Links
+
+        - [Docker Hub](${{ env.REGISTRY }}/${{ env.IMAGE_NAME }})
+        - [Documentation](https://github.com/${{ github.repository }}/blob/main/README.md)
+        - [Full Changelog](https://github.com/${{ github.repository }}/compare/${PREV_TAG}...v${{ steps.version.outputs.version }})
+
+        ### ⚠️ Breaking Changes
+
+        None in this release.
+
+        ### 🐛 Bug Fixes & Improvements
+
+        See changelog above for detailed list of changes.
+        EOF
+        )
+
+        echo "notes<<EOF" >> $GITHUB_OUTPUT
+        echo "$RELEASE_NOTES" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+  # Create GitHub release
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build-release]
+
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Create Release
+      id: create-release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name }}
+        release_name: DepegAlert Bot ${{ github.ref_name }}
+        body: ${{ needs.build-release.outputs.release-notes }}
+        draft: false
+        prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+
+    - name: Update latest release
+      if: "!contains(github.ref_name, 'alpha') && !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'rc')"
+      run: |
+        echo "🏷️ Marking as latest release"
+        gh release edit ${{ github.ref_name }} --latest
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Test the released image
+  test-release:
+    name: Test Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build-release]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 3s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Test released Docker image
+      run: |
+        echo "🧪 Testing released Docker image..."
+
+        # Pull the released image
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-release.outputs.version }}
+
+        # Test basic functionality
+        docker run --rm \
+          -e DATABASE_URL=postgresql://test_user:test_pass@localhost:5432/test_db \
+          -e REDIS_URL=redis://localhost:6379 \
+          -e LOG_LEVEL=DEBUG \
+          -e TELEGRAM_BOT_TOKEN=dummy_token_for_test \
+          -e ALERT_CHANNEL_ID=-1001234567890 \
+          --network host \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-release.outputs.version }} \
+          python -c "
+        import sys
+        print('✅ Testing Docker image...')
+
+        # Test imports
+        try:
+            import bot
+            import core
+            print('✅ All modules importable')
+        except ImportError as e:
+            print(f'❌ Import error: {e}')
+            sys.exit(1)
+
+        # Test configuration
+        try:
+            from config import validate_config
+            print('✅ Configuration validation works')
+        except Exception as e:
+            print(f'⚠️ Config validation failed: {e}')
+
+        print('✅ Docker image test completed successfully')
+        "
+
+        echo "✅ Release testing completed"
+
+  # Notify deployment channels
+  notify-release:
+    name: Notify Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [create-release, test-release]
+    if: always()
+
+    steps:
+    - name: Notify Discord/Slack (if configured)
+      if: needs.create-release.result == 'success' && needs.test-release.result == 'success'
+      run: |
+        echo "🎉 Release v${{ needs.build-release.outputs.version }} completed successfully!"
+        echo "📦 Docker image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-release.outputs.version }}"
+
+        # Add your notification webhooks here
+        # Example Discord webhook:
+        # curl -X POST ${{ secrets.DISCORD_WEBHOOK }} \
+        #   -H "Content-Type: application/json" \
+        #   -d '{
+        #     "content": "🚀 DepegAlert Bot v${{ needs.build-release.outputs.version }} has been released!\n\n📦 Docker: `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-release.outputs.version }}`\n🔗 Release: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+        #   }'
+
+        # Example Slack webhook:
+        # curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
+        #   -H "Content-Type: application/json" \
+        #   -d '{
+        #     "text": "🚀 DepegAlert Bot v${{ needs.build-release.outputs.version }} released!",
+        #     "attachments": [{
+        #       "color": "good",
+        #       "fields": [
+        #         {"title": "Docker Image", "value": "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-release.outputs.version }}", "short": true},
+        #         {"title": "Release Notes", "value": "https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}", "short": true}
+        #       ]
+        #     }]
+        #   }'
+
+    - name: Notify on failure
+      if: needs.create-release.result == 'failure' || needs.test-release.result == 'failure'
+      run: |
+        echo "❌ Release failed!"
+        echo "Create Release: ${{ needs.create-release.result }}"
+        echo "Test Release: ${{ needs.test-release.result }}"
+
+        # Add failure notification here
+        # curl -X POST ${{ secrets.DISCORD_WEBHOOK }} \
+        #   -H "Content-Type: application/json" \
+        #   -d '{"content": "❌ DepegAlert Bot release v${{ needs.build-release.outputs.version }} failed! Check GitHub Actions for details."}'

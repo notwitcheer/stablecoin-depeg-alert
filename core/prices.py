@@ -2,14 +2,17 @@
 CoinGecko API Client for Fetching Stablecoin Prices
 Free tier: 50 calls/min - we only need 1 call/min
 """
-import httpx
+
 import logging
 from typing import Dict, List
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
 COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price"
 REQUEST_TIMEOUT = 30  # seconds
+
 
 async def fetch_prices(coin_ids: List[str]) -> Dict[str, float]:
     """
@@ -37,8 +40,8 @@ async def fetch_prices(coin_ids: List[str]) -> Dict[str, float]:
                 params={
                     "ids": ",".join(coin_ids),
                     "vs_currencies": "usd",
-                    "precision": "4"  # Get 4 decimal places
-                }
+                    "precision": "4",  # Get 4 decimal places
+                },
             )
 
             response.raise_for_status()
@@ -56,11 +59,15 @@ async def fetch_prices(coin_ids: List[str]) -> Dict[str, float]:
 
             # Don't return any data if critical coins are missing
             if missing_prices:
-                logger.error(f"Missing price data for {missing_prices}. This could indicate API issues.")
+                logger.error(
+                    f"Missing price data for {missing_prices}. This could indicate API issues."
+                )
                 # Still return available prices but log the issue
                 for coin_id in missing_prices:
                     # Only default to 1.0 for non-critical situations and log it clearly
-                    logger.warning(f"Defaulting {coin_id} price to $1.00 - THIS MAY HIDE REAL DEPEGS!")
+                    logger.warning(
+                        f"Defaulting {coin_id} price to $1.00 - THIS MAY HIDE REAL DEPEGS!"
+                    )
                     prices[coin_id] = 1.0
 
             logger.info(f"Successfully fetched {len(prices)} prices")
@@ -73,11 +80,14 @@ async def fetch_prices(coin_ids: List[str]) -> Dict[str, float]:
         logger.error(f"HTTP error from CoinGecko: {e.response.status_code}")
         # Handle rate limiting specifically
         if e.response.status_code == 429:
-            logger.error("CoinGecko rate limit exceeded! Consider upgrading API plan or reducing request frequency.")
+            logger.error(
+                "CoinGecko rate limit exceeded! Consider upgrading API plan or reducing request frequency."
+            )
         raise Exception(f"CoinGecko API error: {e.response.status_code}")
     except Exception as e:
         logger.error(f"Unexpected error fetching prices: {e}")
         raise Exception(f"Failed to fetch prices: {str(e)}")
+
 
 async def test_api_connection() -> bool:
     """

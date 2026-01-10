@@ -80,9 +80,6 @@ docs/_build/
 dmypy.json
 
 # Project Specific
-data/alert_history.json
-data/subscribers.json
-data/backups/
 *.backup
 
 # Temporary Files

@@ -2,29 +2,44 @@
 Health Check and Monitoring System
 Provides HTTP endpoints for system health, metrics, and status monitoring
 """
+
 import asyncio
 import json
 import logging
-import psutil
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Optional
 import time
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
+
+import psutil
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+)
 
 from core.database import DatabaseManager, get_db_session
-from core.resilience import health_status, get_degradation_level
+from core.db_models import AlertHistory, StablecoinPrice, SystemMetric, User
 from core.prices import test_api_connection
-from core.db_models import User, AlertHistory, StablecoinPrice, SystemMetric
+from core.resilience import get_degradation_level, health_status
 
 logger = logging.getLogger(__name__)
 
 # Prometheus Metrics
-request_counter = Counter('depeg_requests_total', 'Total requests', ['endpoint', 'status'])
-response_time = Histogram('depeg_response_time_seconds', 'Response time', ['endpoint'])
-active_users = Gauge('depeg_active_users', 'Number of active users')
-alerts_sent = Counter('depeg_alerts_sent_total', 'Total alerts sent', ['symbol', 'tier'])
-price_checks = Counter('depeg_price_checks_total', 'Total price checks', ['status'])
-system_health = Gauge('depeg_system_health', 'System health status (1=healthy, 0=unhealthy)')
+request_counter = Counter(
+    "depeg_requests_total", "Total requests", ["endpoint", "status"]
+)
+response_time = Histogram("depeg_response_time_seconds", "Response time", ["endpoint"])
+active_users = Gauge("depeg_active_users", "Number of active users")
+alerts_sent = Counter(
+    "depeg_alerts_sent_total", "Total alerts sent", ["symbol", "tier"]
+)
+price_checks = Counter("depeg_price_checks_total", "Total price checks", ["status"])
+system_health = Gauge(
+    "depeg_system_health", "System health status (1=healthy, 0=unhealthy)"
+)
+
 
 class HealthChecker:
     """Performs comprehensive health checks"""
@@ -49,7 +64,11 @@ class HealthChecker:
                 "connected": is_connected,
                 "response_time_ms": round(response_time * 1000, 2),
                 "user_count": user_count if is_connected else None,
-                "details": "Database operational" if is_connected else "Database connection failed"
+                "details": (
+                    "Database operational"
+                    if is_connected
+                    else "Database connection failed"
+                ),
             }
 
         except Exception as e:
@@ -58,7 +77,7 @@ class HealthChecker:
                 "connected": False,
                 "response_time_ms": round((time.time() - start_time) * 1000, 2),
                 "error": str(e),
-                "details": "Database check failed"
+                "details": "Database check failed",
             }
 
     @staticmethod
@@ -75,7 +94,11 @@ class HealthChecker:
                 "status": "healthy" if is_api_healthy else "unhealthy",
                 "coingecko_api": is_api_healthy,
                 "response_time_ms": round(response_time * 1000, 2),
-                "details": "API services operational" if is_api_healthy else "API services degraded"
+                "details": (
+                    "API services operational"
+                    if is_api_healthy
+                    else "API services degraded"
+                ),
             }
 
         except Exception as e:
@@ -84,7 +107,7 @@ class HealthChecker:
                 "coingecko_api": False,
                 "response_time_ms": round((time.time() - start_time) * 1000, 2),
                 "error": str(e),
-                "details": "API health check failed"
+                "details": "API health check failed",
             }
 
     @staticmethod
@@ -93,14 +116,10 @@ class HealthChecker:
         try:
             cpu_percent = psutil.cpu_percent(interval=1)
             memory = psutil.virtual_memory()
-            disk = psutil.disk_usage('/')
+            disk = psutil.disk_usage("/")
 
             # Determine health based on resource usage
-            is_healthy = (
-                cpu_percent < 80 and
-                memory.percent < 85 and
-                disk.percent < 90
-            )
+            is_healthy = cpu_percent < 80 and memory.percent < 85 and disk.percent < 90
 
             return {
                 "status": "healthy" if is_healthy else "unhealthy",
@@ -109,14 +128,18 @@ class HealthChecker:
                 "memory_available_gb": round(memory.available / (1024**3), 2),
                 "disk_percent": disk.percent,
                 "disk_free_gb": round(disk.free / (1024**3), 2),
-                "details": "System resources optimal" if is_healthy else "High resource usage detected"
+                "details": (
+                    "System resources optimal"
+                    if is_healthy
+                    else "High resource usage detected"
+                ),
             }
 
         except Exception as e:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "details": "Resource check failed"
+                "details": "Resource check failed",
             }
 
     @staticmethod
@@ -125,7 +148,7 @@ class HealthChecker:
         checks = await asyncio.gather(
             HealthChecker.check_database(),
             HealthChecker.check_api_services(),
-            return_exceptions=True
+            return_exceptions=True,
         )
 
         db_health, api_health = checks[0], checks[1]
@@ -154,10 +177,11 @@ class HealthChecker:
                 "database": db_health,
                 "api_services": api_health,
                 "system_resources": resource_health,
-                "circuit_breakers": health_status.get_overall_health()
+                "circuit_breakers": health_status.get_overall_health(),
             },
-            "uptime_seconds": time.time() - start_time_global
+            "uptime_seconds": time.time() - start_time_global,
         }
+
 
 class MetricsCollector:
     """Collects and aggregates system metrics"""
@@ -169,15 +193,27 @@ class MetricsCollector:
             with get_db_session() as session:
                 # Basic counts
                 total_users = session.query(User).count()
-                active_users_count = session.query(User).filter(
-                    User.last_active >= datetime.now(timezone.utc) - timedelta(days=30)
-                ).count()
+                active_users_count = (
+                    session.query(User)
+                    .filter(
+                        User.last_active
+                        >= datetime.now(timezone.utc) - timedelta(days=30)
+                    )
+                    .count()
+                )
 
                 # Tier distribution
                 from core.db_models import UserTier
-                free_users = session.query(User).filter(User.tier == UserTier.FREE).count()
-                premium_users = session.query(User).filter(User.tier == UserTier.PREMIUM).count()
-                enterprise_users = session.query(User).filter(User.tier == UserTier.ENTERPRISE).count()
+
+                free_users = (
+                    session.query(User).filter(User.tier == UserTier.FREE).count()
+                )
+                premium_users = (
+                    session.query(User).filter(User.tier == UserTier.PREMIUM).count()
+                )
+                enterprise_users = (
+                    session.query(User).filter(User.tier == UserTier.ENTERPRISE).count()
+                )
 
                 # Update Prometheus metrics
                 active_users.set(active_users_count)
@@ -188,8 +224,8 @@ class MetricsCollector:
                     "tier_distribution": {
                         "free": free_users,
                         "premium": premium_users,
-                        "enterprise": enterprise_users
-                    }
+                        "enterprise": enterprise_users,
+                    },
                 }
 
         except Exception as e:
@@ -206,31 +242,44 @@ class MetricsCollector:
                 last_7d = now - timedelta(days=7)
 
                 # Alert counts
-                alerts_24h = session.query(AlertHistory).filter(
-                    AlertHistory.created_at >= last_24h
-                ).count()
+                alerts_24h = (
+                    session.query(AlertHistory)
+                    .filter(AlertHistory.created_at >= last_24h)
+                    .count()
+                )
 
-                alerts_7d = session.query(AlertHistory).filter(
-                    AlertHistory.created_at >= last_7d
-                ).count()
+                alerts_7d = (
+                    session.query(AlertHistory)
+                    .filter(AlertHistory.created_at >= last_7d)
+                    .count()
+                )
 
                 # Alert by status
                 from core.db_models import AlertStatus
-                sent_alerts = session.query(AlertHistory).filter(
-                    AlertHistory.alert_status == AlertStatus.SENT,
-                    AlertHistory.created_at >= last_24h
-                ).count()
 
-                failed_alerts = session.query(AlertHistory).filter(
-                    AlertHistory.alert_status == AlertStatus.FAILED,
-                    AlertHistory.created_at >= last_24h
-                ).count()
+                sent_alerts = (
+                    session.query(AlertHistory)
+                    .filter(
+                        AlertHistory.alert_status == AlertStatus.SENT,
+                        AlertHistory.created_at >= last_24h,
+                    )
+                    .count()
+                )
+
+                failed_alerts = (
+                    session.query(AlertHistory)
+                    .filter(
+                        AlertHistory.alert_status == AlertStatus.FAILED,
+                        AlertHistory.created_at >= last_24h,
+                    )
+                    .count()
+                )
 
                 return {
                     "alerts_24h": alerts_24h,
                     "alerts_7d": alerts_7d,
                     "success_rate_24h": (sent_alerts / max(alerts_24h, 1)) * 100,
-                    "failed_alerts_24h": failed_alerts
+                    "failed_alerts_24h": failed_alerts,
                 }
 
         except Exception as e:
@@ -246,20 +295,26 @@ class MetricsCollector:
                 last_24h = now - timedelta(hours=24)
 
                 # Price check counts
-                price_checks_24h = session.query(StablecoinPrice).filter(
-                    StablecoinPrice.timestamp >= last_24h
-                ).count()
+                price_checks_24h = (
+                    session.query(StablecoinPrice)
+                    .filter(StablecoinPrice.timestamp >= last_24h)
+                    .count()
+                )
 
                 # Depeg events
-                depeg_events = session.query(StablecoinPrice).filter(
-                    StablecoinPrice.timestamp >= last_24h,
-                    StablecoinPrice.status.in_(["depeg", "critical"])
-                ).count()
+                depeg_events = (
+                    session.query(StablecoinPrice)
+                    .filter(
+                        StablecoinPrice.timestamp >= last_24h,
+                        StablecoinPrice.status.in_(["depeg", "critical"]),
+                    )
+                    .count()
+                )
 
                 return {
                     "price_checks_24h": price_checks_24h,
                     "depeg_events_24h": depeg_events,
-                    "check_frequency_minutes": 1440 / max(price_checks_24h, 1)
+                    "check_frequency_minutes": 1440 / max(price_checks_24h, 1),
                 }
 
         except Exception as e:
@@ -273,22 +328,36 @@ class MetricsCollector:
             MetricsCollector.collect_user_metrics(),
             MetricsCollector.collect_alert_metrics(),
             MetricsCollector.collect_price_metrics(),
-            return_exceptions=True
+            return_exceptions=True,
         )
 
         user_metrics, alert_metrics, price_metrics = metrics
 
         return {
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "users": user_metrics if not isinstance(user_metrics, Exception) else {"error": str(user_metrics)},
-            "alerts": alert_metrics if not isinstance(alert_metrics, Exception) else {"error": str(alert_metrics)},
-            "prices": price_metrics if not isinstance(price_metrics, Exception) else {"error": str(price_metrics)}
+            "users": (
+                user_metrics
+                if not isinstance(user_metrics, Exception)
+                else {"error": str(user_metrics)}
+            ),
+            "alerts": (
+                alert_metrics
+                if not isinstance(alert_metrics, Exception)
+                else {"error": str(alert_metrics)}
+            ),
+            "prices": (
+                price_metrics
+                if not isinstance(price_metrics, Exception)
+                else {"error": str(price_metrics)}
+            ),
         }
+
 
 # HTTP Endpoint Functions (for integration with web framework)
 async def health_endpoint() -> Dict[str, Any]:
     """Basic health check endpoint"""
     return await HealthChecker.get_comprehensive_health()
+
 
 async def metrics_endpoint() -> str:
     """Prometheus metrics endpoint"""
@@ -297,6 +366,7 @@ async def metrics_endpoint() -> str:
     system_health.set(1 if health["status"] == "healthy" else 0)
 
     return generate_latest()
+
 
 async def status_endpoint() -> Dict[str, Any]:
     """Detailed system status endpoint"""
@@ -307,16 +377,15 @@ async def status_endpoint() -> Dict[str, Any]:
         "health": health,
         "metrics": metrics,
         "version": "2.0.0",
-        "environment": "production"
+        "environment": "production",
     }
+
 
 async def ready_endpoint() -> Dict[str, Any]:
     """Kubernetes readiness probe"""
     health = await HealthChecker.get_comprehensive_health()
-    return {
-        "ready": health["status"] == "healthy",
-        "timestamp": health["timestamp"]
-    }
+    return {"ready": health["status"] == "healthy", "timestamp": health["timestamp"]}
+
 
 async def live_endpoint() -> Dict[str, Any]:
     """Kubernetes liveness probe"""
@@ -324,14 +393,18 @@ async def live_endpoint() -> Dict[str, Any]:
     return {
         "alive": True,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "uptime_seconds": time.time() - start_time_global
+        "uptime_seconds": time.time() - start_time_global,
     }
+
 
 # System startup tracking
 start_time_global = time.time()
 
+
 # Monitoring utility functions
-def record_system_metric(metric_name: str, value: float, unit: str = "count", tags: Dict = None):
+def record_system_metric(
+    metric_name: str, value: float, unit: str = "count", tags: Dict = None
+):
     """Record a system metric to the database"""
     try:
         with get_db_session() as session:
@@ -339,12 +412,13 @@ def record_system_metric(metric_name: str, value: float, unit: str = "count", ta
                 metric_name=metric_name,
                 metric_value=value,
                 metric_unit=unit,
-                tags=tags or {}
+                tags=tags or {},
             )
             session.add(metric)
             session.commit()
     except Exception as e:
         logger.error(f"Failed to record metric {metric_name}: {e}")
+
 
 def update_prometheus_metrics():
     """Update Prometheus metrics with current values"""
@@ -354,6 +428,7 @@ def update_prometheus_metrics():
         pass
     except Exception as e:
         logger.error(f"Failed to update Prometheus metrics: {e}")
+
 
 class PerformanceMonitor:
     """Monitor performance of key operations"""
@@ -374,19 +449,19 @@ class PerformanceMonitor:
             response_time.labels(endpoint=self.operation_name).observe(duration)
 
             # Record to database
-            record_system_metric(
-                f"{self.operation_name}_duration",
-                duration,
-                "seconds"
-            )
+            record_system_metric(f"{self.operation_name}_duration", duration, "seconds")
 
             # Log if slow
             if duration > 5.0:  # 5 second threshold
-                logger.warning(f"Slow operation detected: {self.operation_name} took {duration:.2f}s")
+                logger.warning(
+                    f"Slow operation detected: {self.operation_name} took {duration:.2f}s"
+                )
+
 
 # Usage example:
 # with PerformanceMonitor("price_check"):
 #     await check_all_pegs()
+
 
 def setup_monitoring():
     """Initialize monitoring system"""
@@ -396,6 +471,7 @@ def setup_monitoring():
     record_system_metric("system_startup", 1, "event")
 
     logger.info("Monitoring system initialized")
+
 
 if __name__ == "__main__":
     # Test monitoring functions

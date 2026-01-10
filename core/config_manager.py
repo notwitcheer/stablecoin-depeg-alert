@@ -2,23 +2,28 @@
 Configuration Management
 Centralized, type-safe configuration with validation
 """
-import os
+
 import logging
-from typing import Optional, Dict, Any, List
+import os
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+
 class Environment(Enum):
     """Environment types"""
+
     DEVELOPMENT = "development"
     STAGING = "staging"
     PRODUCTION = "production"
 
+
 @dataclass
 class TelegramConfig:
     """Telegram bot configuration"""
+
     bot_token: str
     alert_channel_id: str
     premium_channel_id: Optional[str] = None
@@ -29,9 +34,11 @@ class TelegramConfig:
         if not self.alert_channel_id:
             raise ValueError("alert_channel_id is required")
 
+
 @dataclass
 class AlertConfig:
     """Alert system configuration"""
+
     free_threshold_percent: float = 0.5
     premium_threshold_percent: float = 0.2
     warning_threshold_percent: float = 0.2
@@ -39,35 +46,43 @@ class AlertConfig:
     free_cooldown_minutes: int = 30
     premium_cooldown_minutes: int = 5
 
+
 @dataclass
 class APIConfig:
     """External API configuration"""
+
     coingecko_base_url: str = "https://api.coingecko.com/api/v3"
     rate_limit_per_minute: int = 50
     timeout_seconds: int = 30
     check_interval_seconds: int = 60
 
+
 @dataclass
 class DatabaseConfig:
     """Database configuration"""
+
     url: str = "postgresql://postgres:password@localhost:5432/depeg_alert"
     pool_size: int = 20
     max_overflow: int = 30
     pool_pre_ping: bool = True
     echo_sql: bool = False
 
+
 @dataclass
 class SecurityConfig:
     """Security configuration"""
+
     max_requests_per_minute: int = 10
     rate_limit_window_seconds: int = 60
     max_message_length: int = 4096
     log_user_requests: bool = True
     validate_inputs: bool = True
 
+
 @dataclass
 class AppConfig:
     """Complete application configuration"""
+
     environment: Environment
     telegram: TelegramConfig
     alerts: AlertConfig = field(default_factory=AlertConfig)
@@ -97,16 +112,24 @@ class AppConfig:
         # Alert configuration
         alerts = AlertConfig(
             free_threshold_percent=float(os.getenv("FREE_THRESHOLD_PERCENT", "0.5")),
-            premium_threshold_percent=float(os.getenv("PREMIUM_THRESHOLD_PERCENT", "0.2")),
-            warning_threshold_percent=float(os.getenv("WARNING_THRESHOLD_PERCENT", "0.2")),
-            critical_threshold_percent=float(os.getenv("CRITICAL_THRESHOLD_PERCENT", "2.0")),
+            premium_threshold_percent=float(
+                os.getenv("PREMIUM_THRESHOLD_PERCENT", "0.2")
+            ),
+            warning_threshold_percent=float(
+                os.getenv("WARNING_THRESHOLD_PERCENT", "0.2")
+            ),
+            critical_threshold_percent=float(
+                os.getenv("CRITICAL_THRESHOLD_PERCENT", "2.0")
+            ),
             free_cooldown_minutes=int(os.getenv("FREE_COOLDOWN_MINUTES", "30")),
             premium_cooldown_minutes=int(os.getenv("PREMIUM_COOLDOWN_MINUTES", "5")),
         )
 
         # API configuration
         api = APIConfig(
-            coingecko_base_url=os.getenv("COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3"),
+            coingecko_base_url=os.getenv(
+                "COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3"
+            ),
             rate_limit_per_minute=int(os.getenv("RATE_LIMIT_PER_MINUTE", "50")),
             timeout_seconds=int(os.getenv("API_TIMEOUT_SECONDS", "30")),
             check_interval_seconds=int(os.getenv("CHECK_INTERVAL_SECONDS", "60")),
@@ -114,7 +137,10 @@ class AppConfig:
 
         # Database configuration
         database = DatabaseConfig(
-            url=os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/depeg_alert"),
+            url=os.getenv(
+                "DATABASE_URL",
+                "postgresql://postgres:password@localhost:5432/depeg_alert",
+            ),
             pool_size=int(os.getenv("DB_POOL_SIZE", "20")),
             max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "30")),
             pool_pre_ping=os.getenv("DB_POOL_PRE_PING", "true").lower() == "true",
@@ -162,7 +188,9 @@ class AppConfig:
             errors.append("free_threshold_percent must be positive")
 
         if self.alerts.premium_threshold_percent >= self.alerts.free_threshold_percent:
-            errors.append("premium_threshold_percent should be less than free_threshold_percent")
+            errors.append(
+                "premium_threshold_percent should be less than free_threshold_percent"
+            )
 
         # Production-specific validations
         if self.environment == Environment.PRODUCTION:
@@ -214,8 +242,10 @@ class AppConfig:
             "debug": self.debug,
         }
 
+
 # Global configuration instance
 _config: Optional[AppConfig] = None
+
 
 def get_config() -> AppConfig:
     """Get global configuration instance"""
@@ -234,15 +264,19 @@ def get_config() -> AppConfig:
             if _config.environment == Environment.PRODUCTION:
                 raise ValueError(f"Configuration validation failed: {errors}")
             else:
-                logger.warning("Configuration has errors but continuing in development mode")
+                logger.warning(
+                    "Configuration has errors but continuing in development mode"
+                )
 
     return _config
+
 
 def reload_config() -> AppConfig:
     """Reload configuration from environment"""
     global _config
     _config = None
     return get_config()
+
 
 # Backward compatibility functions
 def validate_config() -> None:
@@ -252,6 +286,7 @@ def validate_config() -> None:
     if errors:
         raise ValueError(f"Configuration validation failed: {errors}")
     logger.info("✅ Configuration validated successfully")
+
 
 def get_env_example() -> str:
     """Get example environment variables"""

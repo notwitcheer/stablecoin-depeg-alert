@@ -1,0 +1,73 @@
+[flake8]
+# Flake8 Configuration for DepegAlert Bot
+# Compatible with Black formatter
+
+# Maximum line length (match Black's default)
+max-line-length = 88
+
+# Error codes to ignore
+ignore =
+    # Line break before binary operator (conflicts with Black)
+    W503,
+    # Line break after binary operator (conflicts with Black)
+    W504,
+    # Missing docstring in public module
+    D100,
+    # Missing docstring in public package
+    D104,
+    # Missing docstring in __init__ method
+    D107,
+    # 1 blank line required before class docstring
+    D203,
+    # Multi-line docstring summary should start at the second line
+    D213,
+    # Whitespace before ':'
+    E203
+
+# Files and directories to exclude
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    env,
+    .env,
+    migrations,
+    build,
+    dist,
+    *.egg-info,
+    .pytest_cache,
+    .mypy_cache,
+    htmlcov,
+    .coverage
+
+# Complexity settings
+max-complexity = 15
+max-cognitive-complexity = 15
+
+# Per-file ignores
+per-file-ignores =
+    # Tests can have longer lines and missing docstrings
+    tests/*:D,E501
+    # Configuration files can be more complex
+    config.py:E501,C901
+    # __init__.py files don't need docstrings
+    */__init__.py:D,F401
+
+# Select error codes to check
+select =
+    E,   # pycodestyle errors
+    W,   # pycodestyle warnings
+    F,   # pyflakes
+    C,   # mccabe complexity
+    D,   # pydocstyle docstring conventions
+    B,   # flake8-bugbear
+    I    # isort import order
+
+# Import order settings (for flake8-import-order)
+import-order-style = google
+application-import-names = bot,core
+
+# Docstring settings
+docstring-convention = google
+strictness = short

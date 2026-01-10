@@ -2,16 +2,24 @@
 HTTP Monitoring Server
 Provides health check, metrics, and status endpoints for production monitoring
 """
+
 import asyncio
 import json
 import logging
+
 from aiohttp import web, web_response
+
 from core.monitoring import (
-    health_endpoint, metrics_endpoint, status_endpoint,
-    ready_endpoint, live_endpoint, setup_monitoring
+    health_endpoint,
+    live_endpoint,
+    metrics_endpoint,
+    ready_endpoint,
+    setup_monitoring,
+    status_endpoint,
 )
 
 logger = logging.getLogger(__name__)
+
 
 class MonitoringServer:
     """HTTP server for monitoring endpoints"""
@@ -26,16 +34,16 @@ class MonitoringServer:
         app = web.Application()
 
         # Health check routes
-        app.router.add_get('/health', self.handle_health)
-        app.router.add_get('/health/ready', self.handle_ready)
-        app.router.add_get('/health/live', self.handle_live)
+        app.router.add_get("/health", self.handle_health)
+        app.router.add_get("/health/ready", self.handle_ready)
+        app.router.add_get("/health/live", self.handle_live)
 
         # Metrics and status
-        app.router.add_get('/metrics', self.handle_metrics)
-        app.router.add_get('/status', self.handle_status)
+        app.router.add_get("/metrics", self.handle_metrics)
+        app.router.add_get("/status", self.handle_status)
 
         # Root endpoint
-        app.router.add_get('/', self.handle_root)
+        app.router.add_get("/", self.handle_root)
 
         self.app = app
         return app
@@ -50,10 +58,9 @@ class MonitoringServer:
 
         except Exception as e:
             logger.error(f"Health check failed: {e}")
-            return web.json_response({
-                "status": "unhealthy",
-                "error": str(e)
-            }, status=500)
+            return web.json_response(
+                {"status": "unhealthy", "error": str(e)}, status=500
+            )
 
     async def handle_ready(self, request: web.Request) -> web.Response:
         """Kubernetes readiness probe"""
@@ -65,10 +72,7 @@ class MonitoringServer:
 
         except Exception as e:
             logger.error(f"Readiness check failed: {e}")
-            return web.json_response({
-                "ready": False,
-                "error": str(e)
-            }, status=500)
+            return web.json_response({"ready": False, "error": str(e)}, status=500)
 
     async def handle_live(self, request: web.Request) -> web.Response:
         """Kubernetes liveness probe"""
@@ -78,21 +82,17 @@ class MonitoringServer:
 
         except Exception as e:
             logger.error(f"Liveness check failed: {e}")
-            return web.json_response({
-                "alive": False,
-                "error": str(e)
-            }, status=500)
+            return web.json_response({"alive": False, "error": str(e)}, status=500)
 
     async def handle_metrics(self, request: web.Request) -> web.Response:
         """Prometheus metrics endpoint"""
         try:
             from prometheus_client import CONTENT_TYPE_LATEST
+
             metrics_data = await metrics_endpoint()
 
             return web.Response(
-                text=metrics_data,
-                content_type=CONTENT_TYPE_LATEST,
-                status=200
+                text=metrics_data, content_type=CONTENT_TYPE_LATEST, status=200
             )
 
         except Exception as e:
@@ -100,7 +100,7 @@ class MonitoringServer:
             return web.Response(
                 text=f"# Error collecting metrics: {e}",
                 content_type="text/plain",
-                status=500
+                status=500,
             )
 
     async def handle_status(self, request: web.Request) -> web.Response:
@@ -111,23 +111,23 @@ class MonitoringServer:
 
         except Exception as e:
             logger.error(f"Status check failed: {e}")
-            return web.json_response({
-                "error": str(e)
-            }, status=500)
+            return web.json_response({"error": str(e)}, status=500)
 
     async def handle_root(self, request: web.Request) -> web.Response:
         """Root endpoint with available routes"""
-        return web.json_response({
-            "service": "DepegAlert Monitoring",
-            "version": "2.0.0",
-            "endpoints": {
-                "/health": "Comprehensive health check",
-                "/health/ready": "Kubernetes readiness probe",
-                "/health/live": "Kubernetes liveness probe",
-                "/metrics": "Prometheus metrics",
-                "/status": "Detailed system status"
+        return web.json_response(
+            {
+                "service": "DepegAlert Monitoring",
+                "version": "2.0.0",
+                "endpoints": {
+                    "/health": "Comprehensive health check",
+                    "/health/ready": "Kubernetes readiness probe",
+                    "/health/live": "Kubernetes liveness probe",
+                    "/metrics": "Prometheus metrics",
+                    "/status": "Detailed system status",
+                },
             }
-        })
+        )
 
     async def start(self):
         """Start the monitoring server"""
@@ -150,6 +150,7 @@ class MonitoringServer:
 
         return runner
 
+
 async def run_monitoring_server():
     """Run the monitoring server as a standalone service"""
     import os
@@ -169,11 +170,12 @@ async def run_monitoring_server():
     finally:
         await runner.cleanup()
 
+
 if __name__ == "__main__":
     # Set up logging
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
     # Run the monitoring server
