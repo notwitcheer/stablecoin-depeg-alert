@@ -73,7 +73,7 @@ jobs:
 
     - name: Create issue for outdated dependencies
       if: steps.check-outdated.outputs.outdated-count > 0
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           const outdatedCount = '${{ steps.check-outdated.outputs.outdated-count }}';
@@ -175,7 +175,7 @@ jobs:
 
     - name: Create PR for base image update
       if: env.base-image-updated == 'true'
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           const { data: prs } = await github.rest.pulls.list({
