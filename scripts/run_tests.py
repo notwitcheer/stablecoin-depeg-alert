@@ -15,7 +15,9 @@ def run_command(command: list, description: str) -> int:
     print(f"Running: {' '.join(command)}")
     print("-" * 60)
 
-    result = subprocess.run(command, cwd=Path(__file__).parent)
+    result = subprocess.run(
+        command, cwd=Path(__file__).parent.parent
+    )  # Run from project root
     if result.returncode == 0:
         print(f"✅ {description} completed successfully")
     else:

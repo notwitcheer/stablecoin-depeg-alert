@@ -10,17 +10,20 @@ from contextlib import contextmanager
 from typing import Any, Generator, Optional
 from urllib.parse import urlparse
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import (
     DatabaseError,
     DisconnectionError,
     OperationalError,
-    SQLAlchemyError,
     TimeoutError,
 )
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import QueuePool, StaticPool
+
+# Load environment variables
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +68,7 @@ def validate_database_url(url: str) -> bool:
 def create_database_engine() -> Engine:
     """Create and configure database engine with proper error handling"""
     if not validate_database_url(DATABASE_URL):
-        raise ValueError(f"Invalid or insecure database configuration")
+        raise ValueError("Invalid or insecure database configuration")
 
     # Parse URL to determine database type
     parsed = urlparse(DATABASE_URL)
@@ -103,7 +106,8 @@ def create_database_engine() -> Engine:
     try:
         engine = create_engine(DATABASE_URL, **engine_kwargs)
         logger.info(
-            f"Database engine created for {parsed.scheme}://{parsed.hostname}:{parsed.port}"
+            f"Database engine created for "
+            f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
         )
         return engine
     except Exception as e:
@@ -382,7 +386,7 @@ def check_connection_on_checkout(dbapi_connection, connection_record, connection
         raise DisconnectionError("Connection validation failed")
 
 
-@event.listens_for(engine, "invalid")
+@event.listens_for(engine, "invalidate")
 def handle_connection_invalidated(dbapi_connection, connection_record, exception):
     """Handle invalidated connections"""
     logger.warning(f"Database connection invalidated: {exception}")
@@ -429,7 +433,8 @@ def init_database(create_tables: bool = True, timeout: int = 30) -> bool:
                     # Try to query a core table to verify it exists
                     result = session.execute(
                         text(
-                            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'users'"
+                            "SELECT COUNT(*) FROM information_schema.tables "
+                            "WHERE table_name = 'users'"
                         )
                     )
                     table_count = result.fetchone()[0]

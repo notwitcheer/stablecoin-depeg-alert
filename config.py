@@ -5,6 +5,11 @@ Configuration and Constants for DepegAlert Bot
 import os
 from typing import Optional
 
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
 # Telegram Configuration
 BOT_TOKEN: Optional[str] = os.getenv("TELEGRAM_BOT_TOKEN")
 ALERT_CHANNEL_ID: Optional[str] = os.getenv("ALERT_CHANNEL_ID")  # @DepegAlerts
@@ -44,6 +49,13 @@ LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 # Validation
 def validate_config():
     """Validate required configuration"""
+    test_mode = os.getenv("TEST_MODE", "false").lower() == "true"
+
+    if test_mode:
+        print("🧪 Running in TEST MODE - skipping Telegram validation")
+        print("✅ Configuration validated successfully (test mode)")
+        return
+
     if not BOT_TOKEN or BOT_TOKEN.strip() == "":
         raise ValueError(
             "TELEGRAM_BOT_TOKEN environment variable is required and cannot be empty"

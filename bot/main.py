@@ -6,10 +6,13 @@ Telegram bot for monitoring stablecoin pegs in real-time
 import asyncio
 import logging
 import sys
-from datetime import datetime
 from typing import NoReturn
 
+from dotenv import load_dotenv
 from telegram.ext import Application
+
+# Load environment variables first
+load_dotenv()
 
 from bot.handlers import setup_handlers
 from bot.scheduler import start_scheduler
@@ -27,7 +30,8 @@ def setup_logging() -> None:
 
     # Create formatter
     formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+        "%(asctime)s - %(name)s - %(levelname)s - "
+        "[%(filename)s:%(lineno)d] - %(message)s"
     )
 
     # Setup console handler
