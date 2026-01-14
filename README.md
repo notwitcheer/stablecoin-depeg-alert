@@ -1,4 +1,4 @@
-# DepegAlert Bot 🚨
+# Stablecoin DepegAlert Bot
 
 > **Never miss a stablecoin depeg again**
 
