@@ -73,7 +73,7 @@ class UserManager:
         """Create default user preferences"""
         default_prefs = UserPreference(
             user_id=user_id,
-            enabled_tiers=[1, 2],  # Free tier gets Tier 1 + 2 stablecoins
+            enabled_tiers=[1],  # Free tier gets Tier 1 stablecoins only
             alert_channels=["telegram"],
             excluded_stablecoins=[],
             priority_stablecoins=["USDT", "USDC", "DAI"],
@@ -152,7 +152,7 @@ class UserManager:
             if new_tier in [UserTier.PREMIUM, UserTier.ENTERPRISE]:
                 preferences = get_user_preferences(session, user.id)
                 if preferences:
-                    preferences.enabled_tiers = [1, 2, 3]  # Access to all tiers
+                    preferences.enabled_tiers = [1, 2]  # Access to all tiers
                     preferences.max_alerts_per_hour = (
                         50 if new_tier == UserTier.PREMIUM else 200
                     )
@@ -281,7 +281,7 @@ class UserManager:
                 # Update preferences
                 preferences = get_user_preferences(session, user.id)
                 if preferences:
-                    preferences.enabled_tiers = [1, 2]
+                    preferences.enabled_tiers = [1]  # Back to free tier (tier 1 only)
                     preferences.custom_threshold = None
                     preferences.max_alerts_per_hour = 10
 
@@ -377,7 +377,7 @@ class SubscriptionManager:
             # Reset preferences
             preferences = get_user_preferences(session, user.id)
             if preferences:
-                preferences.enabled_tiers = [1, 2]
+                preferences.enabled_tiers = [1]  # Back to free tier (tier 1 only)
                 preferences.custom_threshold = None
                 preferences.max_alerts_per_hour = 10
 

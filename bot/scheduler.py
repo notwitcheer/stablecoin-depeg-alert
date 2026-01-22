@@ -83,18 +83,10 @@ async def _check_free_tier_alerts(bot: Bot, pegs: List[StablecoinPeg]) -> None:
                 if not UserManager.check_alert_cooldown(
                     "system", peg.symbol, ALERT_CHANNEL_ID
                 ):
-                    # Filter to Tier 1 + 2 stablecoins for free channel
-                    tier_1_2_symbols = [
-                        "USDT",
-                        "USDC",
-                        "DAI",
-                        "USDS",
-                        "FRAX",
-                        "TUSD",
-                        "USDP",
-                        "PYUSD",
-                    ]
-                    if peg.symbol in tier_1_2_symbols:
+                    # Filter to Tier 1 stablecoins only for free channel
+                    from core.stablecoins import FREE_TIER_STABLECOINS
+                    free_tier_symbols = [s.symbol for s in FREE_TIER_STABLECOINS]
+                    if peg.symbol in free_tier_symbols:
                         message = format_alert_message(pegs, triggered_by=peg)
                         await send_to_channel(bot, ALERT_CHANNEL_ID, message)
                         UserManager.update_alert_cooldown(

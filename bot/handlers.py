@@ -57,19 +57,25 @@ I monitor stablecoin pegs 24/7 and alert you when something goes wrong.
         if user_tier == "free":
             welcome_msg += """🆓 Your Plan: FREE
 • Major depegs (>0.5% deviation)
-• Tier 1 + 2 stablecoins (8 coins)
+• 4 core stablecoins (USDT, USDC, DAI, USDS)
 • 30min cooldown between alerts
 
 💎 Upgrade to Premium for:
 • Early warnings (>0.2% deviation)
-• All stablecoins (20+ coins)
+• 39+ stablecoins across ALL chains:
+  🔷 Ethereum • Arbitrum • Base • Polygon
+  🔷 Optimism • Avalanche • BNB Chain • Gnosis • Berachain
+• Cross-chain depeg detection
 • Custom alert thresholds
 • Real-time alerts, no cooldown
 """
         elif user_tier == "premium":
             welcome_msg += """💎 Your Plan: PREMIUM
 • Early warnings (>0.2% deviation)
-• All stablecoins tracked (20+ coins)
+• 39+ stablecoins across ALL blockchains:
+  🔷 Ethereum • Arbitrum • Base • Polygon
+  🔷 Optimism • Avalanche • BNB Chain • Gnosis • Berachain
+• Cross-chain depeg detection
 • Custom alert thresholds
 • 5min cooldown between alerts
 • Priority support
@@ -77,7 +83,8 @@ I monitor stablecoin pegs 24/7 and alert you when something goes wrong.
         elif user_tier == "enterprise":
             welcome_msg += """🏢 Your Plan: ENTERPRISE
 • Ultra-fast alerts (>0.1% deviation)
-• All stablecoins tracked
+• 39+ stablecoins across ALL blockchains
+• Complete cross-chain coverage
 • Custom alert thresholds
 • 1min cooldown between alerts
 • Priority support & custom features
@@ -173,7 +180,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Add tier-specific footer
         if user_info["tier"] == "free":
-            message += "\n\n💡 Upgrade to Premium to see all stablecoins!"
+            message += "\n\n💎 Upgrade to Premium to track 39+ stablecoins across ALL blockchains!\n🔷 Ethereum • Arbitrum • Base • Polygon • Optimism • Avalanche • BNB • Gnosis • Berachain"
 
         await update.message.reply_text(message)
         logger.info(f"Status response sent to user {user_id}")
@@ -364,12 +371,15 @@ async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 🆓 Free Channel: @DepegAlerts
 • Major depegs (>0.5% deviation)
-• Tier 1 + Tier 2 stablecoins
+• 4 core stablecoins (USDT, USDC, DAI, USDS)
 • 30min cooldown between alerts
 
 💎 Premium Channel: Coming Soon!
 • Early warnings (>0.2% deviation)
-• All stablecoins tracked
+• 39+ stablecoins across ALL blockchains:
+  🔷 Ethereum • Arbitrum • Base • Polygon
+  🔷 Optimism • Avalanche • BNB Chain • Gnosis • Berachain
+• Cross-chain depeg detection
 • Real-time, no cooldown
 • Custom thresholds
 
