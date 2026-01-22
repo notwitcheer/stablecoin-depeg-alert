@@ -81,12 +81,38 @@ async def main() -> None:
         # Setup command handlers
         setup_handlers(application)
 
-        # Start price checking scheduler
+        # Initialize application
+        await application.initialize()
+
+        # Start price checking scheduler after app is initialized
         start_scheduler()
 
         # Start the bot
         logger.info("Bot is online and monitoring stablecoins 24/7...")
-        await application.run_polling()
+
+        # Start the application
+        await application.start()
+        await application.updater.start_polling()
+
+        # Keep the bot running
+        try:
+            import signal
+            stop = asyncio.Event()
+
+            def signal_handler(*args):
+                logger.info("Received stop signal")
+                stop.set()
+
+            signal.signal(signal.SIGTERM, signal_handler)
+            signal.signal(signal.SIGINT, signal_handler)
+
+            await stop.wait()
+        finally:
+            # Cleanup
+            logger.info("Shutting down...")
+            await application.updater.stop()
+            await application.stop()
+            await application.shutdown()
 
     except Exception as e:
         logger.error(f"Failed to start bot: {e}")
@@ -94,4 +120,17 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        # Try to get existing loop first
+        try:
+            loop = asyncio.get_running_loop()
+            logger.warning("Event loop already running, creating task instead")
+            loop.create_task(main())
+        except RuntimeError:
+            # No loop running, safe to use asyncio.run
+            asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.error(f"Failed to start bot: {e}")
+        sys.exit(1)

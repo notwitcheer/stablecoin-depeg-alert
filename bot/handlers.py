@@ -32,17 +32,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         set_user_context(str(user.id), user.username)
         add_breadcrumb("User started bot", "command", "info", {"user_id": user.id})
 
-        # Register or get user in database
-        db_user = UserManager.register_or_get_user(
-            telegram_id=str(user.id),
-            username=user.username,
-            first_name=user.first_name,
-            last_name=user.last_name,
-        )
-
-        # Get user info for personalized message
-        user_info = UserManager.get_user_info(str(user.id))
-        user_tier = user_info["tier"] if user_info else "free"
+        # Simplified approach - skip database for now
+        user_tier = "free"
+        logger.info(f"User {user.id} started bot (simplified mode)")
 
         # Update Sentry context with tier
         set_user_context(str(user.id), user.username, user_tier)
