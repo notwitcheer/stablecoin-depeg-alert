@@ -62,7 +62,7 @@ I monitor stablecoin pegs 24/7 and alert you when something goes wrong.
 
 💎 Upgrade to Premium for:
 • Early warnings (>0.2% deviation)
-• 39+ stablecoins across ALL chains:
+• 38+ stablecoins across ALL chains:
   🔷 Ethereum • Arbitrum • Base • Polygon
   🔷 Optimism • Avalanche • BNB Chain • Gnosis • Berachain
 • Cross-chain depeg detection
@@ -72,7 +72,7 @@ I monitor stablecoin pegs 24/7 and alert you when something goes wrong.
         elif user_tier == "premium":
             welcome_msg += """💎 Your Plan: PREMIUM
 • Early warnings (>0.2% deviation)
-• 39+ stablecoins across ALL blockchains:
+• 38+ stablecoins across ALL blockchains:
   🔷 Ethereum • Arbitrum • Base • Polygon
   🔷 Optimism • Avalanche • BNB Chain • Gnosis • Berachain
 • Cross-chain depeg detection
@@ -83,7 +83,7 @@ I monitor stablecoin pegs 24/7 and alert you when something goes wrong.
         elif user_tier == "enterprise":
             welcome_msg += """🏢 Your Plan: ENTERPRISE
 • Ultra-fast alerts (>0.1% deviation)
-• 39+ stablecoins across ALL blockchains
+• 38+ stablecoins across ALL blockchains
 • Complete cross-chain coverage
 • Custom alert thresholds
 • 1min cooldown between alerts
@@ -180,7 +180,11 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Add tier-specific footer
         if user_info["tier"] == "free":
-            message += "\n\n💎 Upgrade to Premium to track 39+ stablecoins across ALL blockchains!\n🔷 Ethereum • Arbitrum • Base • Polygon • Optimism • Avalanche • BNB • Gnosis • Berachain"
+            message += (
+                "\n\n💎 Upgrade to Premium to track 38+ stablecoins across "
+                "ALL blockchains!\n🔷 Ethereum • Arbitrum • Base • Polygon • "
+                "Optimism • Avalanche • BNB • Gnosis • Berachain"
+            )
 
         await update.message.reply_text(message)
         logger.info(f"Status response sent to user {user_id}")
@@ -234,7 +238,8 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         args = context.args
         if not args:
             await update.message.reply_text(
-                "Usage: /check USDC\n\nAvailable: USDT, USDC, DAI, USDS, FRAX, TUSD, USDP, PYUSD"
+                "Usage: /check USDC\n\n"
+                "Available: USDT, USDC, DAI, USDS, FRAX, TUSD, USDP, PYUSD"
             )
             return
 
@@ -310,7 +315,7 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             },
         )
         await update.message.reply_text(
-            f"❌ Error checking stablecoin. Please verify the symbol and try again."
+            "❌ Error checking stablecoin. Please verify the symbol and try again."
         )
         logger.error(
             f"Check command error for user {user_id}: {sanitize_error_message(e)}"
@@ -329,7 +334,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             user_info = UserManager.get_user_info(user_id)
             user_tier = user_info["tier"] if user_info else "free"
-        except:
+        except Exception:
             pass
 
     help_text = """
@@ -376,7 +381,7 @@ async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 💎 Premium Channel: Coming Soon!
 • Early warnings (>0.2% deviation)
-• 39+ stablecoins across ALL blockchains:
+• 38+ stablecoins across ALL blockchains:
   🔷 Ethereum • Arbitrum • Base • Polygon
   🔷 Optimism • Avalanche • BNB Chain • Gnosis • Berachain
 • Cross-chain depeg detection
@@ -433,14 +438,20 @@ async def account_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if sub_status["is_expired"]:
                     account_msg += "❌ Subscription: EXPIRED\n"
                 else:
-                    account_msg += f"✅ Subscription: {sub_status['days_remaining']} days remaining\n"
+                    days_remaining = sub_status["days_remaining"]
+                    account_msg += f"✅ Subscription: {days_remaining} days remaining\n"
                     if sub_status["subscription_end"]:
-                        account_msg += f"📅 Expires: {sub_status['subscription_end'].strftime('%Y-%m-%d')}\n"
+                        expires = sub_status["subscription_end"].strftime("%Y-%m-%d")
+                        account_msg += f"📅 Expires: {expires}\n"
+
+        prefs = user_info["preferences"]
+        enabled_tiers = ", ".join(map(str, prefs["enabled_tiers"])) if prefs else "1, 2"
+        max_alerts = prefs["max_alerts_per_hour"] if prefs else 10
 
         account_msg += f"""
 🔔 Preferences:
-• Enabled coin tiers: {', '.join(map(str, user_info['preferences']['enabled_tiers'])) if user_info['preferences'] else '1, 2'}
-• Max alerts/hour: {user_info['preferences']['max_alerts_per_hour'] if user_info['preferences'] else 10}
+• Enabled coin tiers: {enabled_tiers}
+• Max alerts/hour: {max_alerts}
 """
 
         if user_info["preferences"] and user_info["preferences"]["custom_threshold"]:
@@ -449,7 +460,10 @@ async def account_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         if user_info["tier"] in ["premium", "enterprise"]:
-            account_msg += "\n💎 Premium Commands:\n/threshold X.X - Set custom alert threshold\n/preferences - Manage alert preferences"
+            account_msg += (
+                "\n💎 Premium Commands:\n/threshold X.X - Set custom alert threshold\n"
+                "/preferences - Manage alert preferences"
+            )
 
         await update.message.reply_text(account_msg)
 
@@ -492,7 +506,9 @@ async def threshold_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Check if user has premium access
         if user_info["tier"] not in ["premium", "enterprise"]:
             await update.message.reply_text(
-                "💎 This feature requires a Premium subscription.\n\nUpgrade to get:\n• Custom alert thresholds\n• Early warnings\n• All stablecoins tracked\n\nContact support for upgrade options."
+                "💎 This feature requires a Premium subscription.\n\n"
+                "Upgrade to get:\n• Custom alert thresholds\n• Early warnings\n"
+                "• All stablecoins tracked\n\nContact support for upgrade options."
             )
             return
 
@@ -500,7 +516,8 @@ async def threshold_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not args:
             current_threshold = UserManager.get_user_alert_threshold(user_id)
             await update.message.reply_text(
-                f"Current threshold: {current_threshold:.2f}%\n\nUsage: /threshold 0.3\nRange: 0.01% to 5.0%"
+                f"Current threshold: {current_threshold:.2f}%\n\n"
+                "Usage: /threshold 0.3\nRange: 0.01% to 5.0%"
             )
             return
 
@@ -515,7 +532,9 @@ async def threshold_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Set threshold
         if UserManager.set_custom_threshold(user_id, threshold):
             await update.message.reply_text(
-                f"✅ Alert threshold set to {threshold:.2f}%\n\nYou'll now receive alerts when stablecoins deviate by more than {threshold:.2f}% from $1.00"
+                f"✅ Alert threshold set to {threshold:.2f}%\n\n"
+                f"You'll now receive alerts when stablecoins deviate by more than "
+                f"{threshold:.2f}% from $1.00"
             )
             logger.info(f"User {user_id} set custom threshold to {threshold}%")
         else:

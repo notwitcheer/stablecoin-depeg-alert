@@ -9,7 +9,7 @@ from typing import Dict, List
 
 from telegram import Bot
 
-from config import ALERT_CHANNEL_ID, FREE_COOLDOWN
+from config import FREE_COOLDOWN
 from core.models import PegStatus, StablecoinPeg
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ def format_alert_message(pegs: List[StablecoinPeg], triggered_by: StablecoinPeg)
     }
 
     # Header
-    msg = f"🚨 DEPEG ALERT\n\n"
+    msg = "🚨 DEPEG ALERT\n\n"
     msg += f"{status_emoji[triggered_by.status]} {triggered_by.symbol}: "
     msg += f"${triggered_by.price:.4f} ({triggered_by.deviation_percent:+.2f}%)\n\n"
 

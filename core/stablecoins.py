@@ -24,39 +24,49 @@ TIER2_STABLECOINS = [
     StablecoinDefinition("PYUSD", "PayPal USD", "paypal-usd", "Centralized", 2),
     StablecoinDefinition("BUSD", "Binance USD", "binance-usd", "Fiat-backed", 2),
     StablecoinDefinition("LUSD", "Liquity USD", "liquity-usd", "Crypto-backed", 2),
-    StablecoinDefinition("MIM", "Magic Internet Money", "magic-internet-money", "Crypto-backed", 2),
+    StablecoinDefinition(
+        "MIM", "Magic Internet Money", "magic-internet-money", "Crypto-backed", 2
+    ),
     StablecoinDefinition("GHO", "GHO", "gho", "Crypto-backed", 2),
     StablecoinDefinition("DOLA", "Dola USD", "dola-usd", "Crypto-backed", 2),
     StablecoinDefinition("USDe", "Ethena USDe", "ethena-usde", "Crypto-backed", 2),
     StablecoinDefinition("sUSD", "sUSD", "susd", "Crypto-backed", 2),
     StablecoinDefinition("USDD", "USDD", "usdd", "Algorithmic", 2),
     StablecoinDefinition("GUSD", "Gemini Dollar", "gemini-dollar", "Centralized", 2),
-    StablecoinDefinition("FDUSD", "First Digital USD", "first-digital-usd", "Centralized", 2),
-
+    StablecoinDefinition(
+        "FDUSD", "First Digital USD", "first-digital-usd", "Centralized", 2
+    ),
     # Specialized & cross-chain assets
     StablecoinDefinition("CRVUSD", "Curve.Fi USD", "crvusd", "Decentralized", 2),
     StablecoinDefinition("EURS", "STASIS EURS", "stasis-eurs", "EUR-pegged", 2),
     StablecoinDefinition("EURT", "Tether EURt", "tether-eurt", "EUR-pegged", 2),
-    StablecoinDefinition("EURC", "Circle EUR Coin", "euro-coin", "Fiat-backed", 2),
+    StablecoinDefinition("EURC", "Circle EUR Coin", "eurc", "Fiat-backed", 2),
     StablecoinDefinition("USD+", "USD Plus", "usd-plus", "Crypto-backed", 2),
-    StablecoinDefinition("MAI", "MAI", "mimatic", "Crypto-backed", 2),
-    StablecoinDefinition("USDbC", "USD Base Coin", "bridged-usdc-base", "Stable-backed", 2),
-    StablecoinDefinition("USDC.e", "Bridged USDC", "bridged-usdc", "Fiat-backed", 2),
+    StablecoinDefinition("MAI", "MAI", "mai", "Crypto-backed", 2),
+    StablecoinDefinition(
+        "USDbC", "USD Base Coin", "bridged-usdc-base", "Stable-backed", 2
+    ),
+    StablecoinDefinition(
+        "USDC.e", "Bridged USDC", "bridged-usd-coin-optimism", "Fiat-backed", 2
+    ),
     StablecoinDefinition("DAI.e", "Bridged DAI", "dai", "Hybrid", 2),
     StablecoinDefinition("USDT.e", "Bridged USDT", "tether", "Fiat-backed", 2),
-    StablecoinDefinition("eUSD", "Electronic USD", "electronic-usd", "Crypto-backed", 2),
+    StablecoinDefinition(
+        "eUSD", "Electronic USD", "electronic-usd", "Crypto-backed", 2
+    ),
     StablecoinDefinition("axlUSDC", "Axelar USDC", "axlusdc", "Crypto-backed", 2),
-    StablecoinDefinition("xUSD", "xUSD", "xusd", "Crypto-backed", 2),
-    StablecoinDefinition("miMATIC", "miMATIC", "mimatic", "Crypto-backed", 2),
+    StablecoinDefinition("xUSD", "xUSD", "xusd-babelfish", "Crypto-backed", 2),
+    StablecoinDefinition("miMATIC", "miMATIC", "mai", "Crypto-backed", 2),
     StablecoinDefinition("orUSDC", "Origin USDC", "origin-usdc", "Fiat-backed", 2),
-    StablecoinDefinition("YUSD", "YUSD", "yusd", "Crypto-backed", 2),
-    StablecoinDefinition("renBTC", "renBTC", "renbtc", "Crypto-backed", 2),
-    StablecoinDefinition("aUSD", "aUSD", "ausd", "Crypto-backed", 2),
-    StablecoinDefinition("UST", "TerraClassicUSD", "terrausd", "Algorithmic", 2),
-
+    StablecoinDefinition("YUSD", "YUSD", "yusd-stablecoin", "Crypto-backed", 2),
+    # Removed renBTC (not a stablecoin)
+    StablecoinDefinition("aUSD", "aUSD", "acala-dollar", "Crypto-backed", 2),
+    StablecoinDefinition(
+        "UST", "TerraClassicUSD", "terra-classic-usd", "Algorithmic", 2
+    ),
     # Berachain stablecoins
-    StablecoinDefinition("HONEY", "Berachain HONEY", "honey", "Crypto-backed", 2),
-    StablecoinDefinition("NECT", "Berachain NECT", "nect", "Crypto-backed", 2),
+    StablecoinDefinition("HONEY", "Berachain HONEY", "honey-3", "Crypto-backed", 2),
+    StablecoinDefinition("NECT", "Berachain NECT", "nectar", "Crypto-backed", 2),
 ]
 
 # All stablecoins combined

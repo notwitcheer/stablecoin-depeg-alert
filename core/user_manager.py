@@ -324,7 +324,7 @@ class UserManager:
         """Get user statistics for admin dashboard"""
         with get_db_session() as session:
             total_users = session.query(User).count()
-            active_users = session.query(User).filter(User.is_active == True).count()
+            active_users = session.query(User).filter(User.is_active.is_(True)).count()
             free_users = session.query(User).filter(User.tier == UserTier.FREE).count()
             premium_users = (
                 session.query(User).filter(User.tier == UserTier.PREMIUM).count()

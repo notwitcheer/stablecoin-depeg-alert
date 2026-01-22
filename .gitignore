@@ -82,6 +82,11 @@ dmypy.json
 # Project Specific
 *.backup
 
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+
 # Temporary Files
 tmp/
 temp/

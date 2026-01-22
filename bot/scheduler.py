@@ -3,9 +3,8 @@ Price Check Scheduler
 Runs automated price checks and sends alerts when needed
 """
 
-import asyncio
 import logging
-from typing import List, Optional
+from typing import List
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -13,10 +12,9 @@ from telegram import Bot
 
 from bot.alerts import format_alert_message, send_to_channel
 from config import ALERT_CHANNEL_ID, BOT_TOKEN, CHECK_INTERVAL, PREMIUM_CHANNEL_ID
-from core.db_models import UserTier
 from core.models import PegStatus, StablecoinPeg
 from core.peg_checker import check_all_pegs
-from core.sentry_config import add_breadcrumb, capture_exception
+from core.sentry_config import capture_exception
 from core.user_manager import UserManager
 
 logger = logging.getLogger(__name__)
@@ -85,6 +83,7 @@ async def _check_free_tier_alerts(bot: Bot, pegs: List[StablecoinPeg]) -> None:
                 ):
                     # Filter to Tier 1 stablecoins only for free channel
                     from core.stablecoins import FREE_TIER_STABLECOINS
+
                     free_tier_symbols = [s.symbol for s in FREE_TIER_STABLECOINS]
                     if peg.symbol in free_tier_symbols:
                         message = format_alert_message(pegs, triggered_by=peg)

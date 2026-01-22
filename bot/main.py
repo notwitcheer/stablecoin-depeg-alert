@@ -6,7 +6,6 @@ Telegram bot for monitoring stablecoin pegs in real-time
 import asyncio
 import logging
 import sys
-from typing import NoReturn
 
 from dotenv import load_dotenv
 from telegram.ext import Application
@@ -97,6 +96,7 @@ async def main() -> None:
         # Keep the bot running
         try:
             import signal
+
             stop = asyncio.Event()
 
             def signal_handler(*args):
