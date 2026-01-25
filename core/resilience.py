@@ -4,7 +4,6 @@ Provides retry logic, circuit breakers, and graceful degradation
 """
 
 import asyncio
-import json
 import logging
 import time
 from datetime import datetime, timedelta
