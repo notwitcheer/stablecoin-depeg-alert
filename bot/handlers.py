@@ -6,7 +6,7 @@ Handles all bot commands like /start, /status, /check, etc.
 import logging
 
 from telegram import Update
-from telegram.ext import CommandHandler, ContextTypes
+from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
 
 from core.security import (
     is_rate_limited,
@@ -1030,6 +1030,114 @@ Ready to start contributing? Use /contribute to begin! 🚀
         logger.error(f"Rewards command error: {sanitize_error_message(e)}")
 
 
+async def handle_contribution_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle user messages that could be contributions"""
+    user = update.effective_user
+    if not user:
+        return
+
+    message = update.message
+    if not message or not message.text:
+        return
+
+    # Check if this is a reply to the contribute command
+    if message.reply_to_message and message.reply_to_message.from_user.is_bot:
+        reply_text = message.reply_to_message.text or ""
+        if "Community Data Contribution" in reply_text:
+            await process_user_contribution(update, context)
+
+    # Also check for contribution-like patterns in regular messages
+    text = message.text.upper()
+    stablecoin_symbols = ['USDT', 'USDC', 'DAI', 'USDS', 'FRAX', 'TUSD', 'USDP', 'PYUSD']
+    sentiment_words = ['POSITIVE', 'NEGATIVE', 'NEUTRAL', 'BULLISH', 'BEARISH', 'GOOD', 'BAD']
+
+    # Check if message contains stablecoin symbol and sentiment
+    has_symbol = any(symbol in text for symbol in stablecoin_symbols)
+    has_sentiment = any(word in text for word in sentiment_words)
+
+    if has_symbol and (has_sentiment or len(message.text) > 20):
+        await process_user_contribution(update, context)
+
+
+async def process_user_contribution(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process and acknowledge user contribution"""
+    user = update.effective_user
+    user_id = str(user.id)
+    contribution_text = update.message.text
+
+    try:
+        # Register user if needed
+        UserManager.register_or_get_user(
+            telegram_id=user_id,
+            username=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name,
+        )
+
+        # Simple contribution processing (mock for now)
+        # In production, this would analyze the text and store in database
+
+        # Extract stablecoin symbol
+        stablecoins = ['USDT', 'USDC', 'DAI', 'USDS', 'FRAX', 'TUSD', 'USDP', 'PYUSD']
+        mentioned_coins = [coin for coin in stablecoins if coin in contribution_text.upper()]
+
+        # Extract sentiment
+        sentiment = "NEUTRAL"
+        text_upper = contribution_text.upper()
+        if any(word in text_upper for word in ['POSITIVE', 'GOOD', 'BULLISH', 'STRONG']):
+            sentiment = "POSITIVE"
+        elif any(word in text_upper for word in ['NEGATIVE', 'BAD', 'BEARISH', 'WEAK', 'CONCERN']):
+            sentiment = "NEGATIVE"
+
+        # Mock point calculation
+        base_points = 10
+        quality_bonus = 5 if len(contribution_text) > 30 else 0
+        symbol_bonus = 5 if mentioned_coins else 0
+        total_points = base_points + quality_bonus + symbol_bonus
+
+        # Send acknowledgment
+        response = f"""
+🎉 **Contribution Received!**
+
+**Your Analysis:**
+• Text: "{contribution_text[:100]}{'...' if len(contribution_text) > 100 else ''}"
+• Detected Coins: {', '.join(mentioned_coins) if mentioned_coins else 'None detected'}
+• Sentiment: {sentiment}
+
+**Points Earned:**
+• Base contribution: {base_points} points
+• Quality bonus: {quality_bonus} points
+• Symbol detection: {symbol_bonus} points
+• **Total: +{total_points} points** 🏆
+
+**Updated Stats:**
+• Total Points: {total_points} (new contributor)
+• Rank: Contributing
+• Next Goal: 100 points for Community Badge
+
+Thank you for helping improve CryptoGuard's AI! 🤖
+
+Use /rewards to see your full contribution history.
+        """
+
+        await update.message.reply_text(response, parse_mode='Markdown')
+        logger.info(f"Processed contribution from user {user_id}: {total_points} points")
+
+    except Exception as e:
+        capture_exception(
+            e,
+            extra={
+                "function": "process_user_contribution",
+                "user_id": user_id,
+                "contribution_text": contribution_text[:200],
+            },
+        )
+        await update.message.reply_text(
+            "❌ Error processing your contribution. Please try again later."
+        )
+        logger.error(f"Error processing contribution: {sanitize_error_message(e)}")
+
+
 def setup_handlers(application):
     """Setup all command handlers"""
     application.add_handler(CommandHandler("start", start_command))
@@ -1046,5 +1154,8 @@ def setup_handlers(application):
     application.add_handler(CommandHandler("contribute", contribute_command))
     application.add_handler(CommandHandler("leaderboard", leaderboard_command))
     application.add_handler(CommandHandler("rewards", rewards_command))
+
+    # Message handler for processing user contributions (process text messages last)
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_contribution_message))
 
     logger.info("All command handlers registered")
