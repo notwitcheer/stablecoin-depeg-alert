@@ -44,7 +44,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         welcome_msg = f"""
 🤖 Welcome to CryptoGuard AI{', ' + user.first_name if user.first_name else ''}!
 
-I'm an AI-powered stablecoin monitoring system that predicts depeg events before they happen. I monitor 39+ stablecoins 24/7 with advanced risk assessment.
+I'm an AI-powered stablecoin monitoring system that predicts depeg events before they happen. I monitor 38 stablecoins across 9 blockchains 24/7 with advanced risk assessment.
 
 🧠 **AI Features:**
 /risk USDT - Get AI risk assessment
@@ -68,7 +68,7 @@ I'm an AI-powered stablecoin monitoring system that predicts depeg events before
 
 💎 Upgrade to Premium for:
 • Early warnings (>0.2% deviation)
-• 38+ stablecoins across ALL chains:
+• 34+ additional stablecoins (38 total):
   🔷 Ethereum • Arbitrum • Base • Polygon
   🔷 Optimism • Avalanche • BNB Chain • Gnosis • Berachain
 • Cross-chain depeg detection
@@ -78,7 +78,7 @@ I'm an AI-powered stablecoin monitoring system that predicts depeg events before
         elif user_tier == "premium":
             welcome_msg += """💎 Your Plan: PREMIUM
 • Early warnings (>0.2% deviation)
-• 38+ stablecoins across ALL blockchains:
+• 38 stablecoins across ALL blockchains:
   🔷 Ethereum • Arbitrum • Base • Polygon
   🔷 Optimism • Avalanche • BNB Chain • Gnosis • Berachain
 • Cross-chain depeg detection
@@ -89,7 +89,7 @@ I'm an AI-powered stablecoin monitoring system that predicts depeg events before
         elif user_tier == "enterprise":
             welcome_msg += """🏢 Your Plan: ENTERPRISE
 • Ultra-fast alerts (>0.1% deviation)
-• 38+ stablecoins across ALL blockchains
+• 38 stablecoins across ALL blockchains
 • Complete cross-chain coverage
 • Custom alert thresholds
 • 1min cooldown between alerts
@@ -245,7 +245,8 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not args:
             await update.message.reply_text(
                 "Usage: /check USDC\n\n"
-                "Available: USDT, USDC, DAI, USDS, FRAX, TUSD, USDP, PYUSD"
+                "🆓 Free: USDT, USDC, DAI, USDS\n"
+                "💎 Premium: 38 stablecoins total (upgrade for full access)"
             )
             return
 
@@ -369,12 +370,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
 
     help_text += """🚨 We monitor these stablecoins:
-• USDT, USDC, DAI, USDS (Tier 1)
-• FRAX, TUSD, USDP, PYUSD (Tier 2)"""
+• USDT, USDC, DAI, USDS (Free - 4 stablecoins)"""
 
     if user_tier != "free":
         help_text += (
-            "\n• LUSD, GUSD, USDD, FDUSD, CRVUSD, GHO, DOLA, MIM, sUSD (Tier 3)"
+            "\n• FRAX, TUSD, USDP, PYUSD, LUSD, GUSD, USDD, FDUSD, CRVUSD, GHO, DOLA, MIM, sUSD + 21 more (Premium - 38 total)"
         )
 
     help_text += "\n\n🔗 Dashboard: stablepeg.xyz (coming soon)"
@@ -394,7 +394,7 @@ async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 💎 Premium Channel: Coming Soon!
 • Early warnings (>0.2% deviation)
-• 38+ stablecoins across ALL blockchains:
+• 34+ additional stablecoins (38 total):
   🔷 Ethereum • Arbitrum • Base • Polygon
   🔷 Optimism • Avalanche • BNB Chain • Gnosis • Berachain
 • Cross-chain depeg detection
