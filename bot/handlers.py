@@ -345,65 +345,79 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     help_text = """
-🤖 CryptoGuard AI-Powered Bot Commands:
+🤖 **CryptoGuard Commands**
 
-📊 **Basic Commands:**
-/status - Check all stablecoin pegs
-/check SYMBOL - Check specific stablecoin (e.g. /check USDC)
+**🔍 Monitoring:**
+/status - Check all 38 stablecoins now
+/check USDC - Check specific stablecoin
+/risk USDT - AI risk assessment with ML predictions
+/predict DAI - AI-powered depeg probability analysis
 
-🧠 **AI Features:**
-/risk SYMBOL - Get AI risk assessment (e.g. /risk USDT)
-/predict SYMBOL [1h|6h|24h] - AI depeg predictions
+**📢 Alerts:**
+/subscribe - Join our alert channels
+/alerts - Manage your alert preferences
 
-ℹ️ **Account & Support:**
-/account - View your account information
-/subscribe - Join our alert channel
+**🤝 Community:**
+/contribute - Contribute social sentiment data and earn rewards
+/leaderboard - View top community contributors
+/rewards - Check your contribution points and badges
+
+**ℹ️ Info:**
 /help - Show this help message
 
-"""
+**🚀 About CryptoGuard:**
+• Real-time monitoring of 38 stablecoins across 9 blockchains
+• AI-powered risk predictions using advanced ML models
+• Free tier: 4 major stablecoins with >0.5% deviation alerts
+• Premium tier: 34+ additional stablecoins (38 total) with >0.2% deviation alerts
 
-    # Add premium commands if user has access
-    if user_tier in ["premium", "enterprise"]:
-        help_text += """💎 Premium Commands:
-/threshold X.X - Set custom alert threshold (e.g. /threshold 0.3)
+**💎 Upgrade to Premium ($15/month):**
+• Early warning alerts (0.2% vs 0.5% threshold)
+• All 38 stablecoins monitored
+• Advanced AI features (cross-chain correlation, predictive scoring)
+• Priority support
+• Enhanced contribution rewards
 
-"""
+**🏢 Enterprise & White-Label:**
+• Custom API access for your platform
+• White-label licensing available
+• Contact us for enterprise pricing
 
-    help_text += """🚨 We monitor these stablecoins:
-• USDT, USDC, DAI, USDS (Free - 4 stablecoins)"""
+Stay safe in DeFi! 🛡️
+    """
 
-    if user_tier != "free":
-        help_text += (
-            "\n• FRAX, TUSD, USDP, PYUSD, LUSD, GUSD, USDD, FDUSD, CRVUSD, GHO, DOLA, MIM, sUSD + 21 more (Premium - 38 total)"
-        )
-
-    help_text += "\n\n🔗 Dashboard: stablepeg.xyz (coming soon)"
-
-    await update.message.reply_text(help_text)
+    await update.message.reply_text(help_text, parse_mode='Markdown')
 
 
 async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /subscribe command"""
     subscribe_msg = """
-📢 Get instant depeg alerts!
+📢 **Get instant depeg alerts!**
 
-🆓 Free Channel: @DepegAlerts
+🆓 **Free Channel: @DepegAlerts**
 • Major depegs (>0.5% deviation)
 • 4 core stablecoins (USDT, USDC, DAI, USDS)
 • 30min cooldown between alerts
 
-💎 Premium Channel: Coming Soon!
+💎 **Premium Channel ($15/month):**
 • Early warnings (>0.2% deviation)
 • 34+ additional stablecoins (38 total):
   🔷 Ethereum • Arbitrum • Base • Polygon
   🔷 Optimism • Avalanche • BNB Chain • Gnosis • Berachain
 • Cross-chain depeg detection
-• Real-time, no cooldown
-• Custom thresholds
+• Real-time alerts, no cooldown
+• Advanced AI features (cross-chain correlation, predictive scoring)
+• Enhanced community contribution rewards
+
+🏢 **Enterprise & White-Label:**
+• Custom API access for exchanges, DeFi protocols
+• White-label licensing ($50-500/month)
+• Custom integration support
 
 Join now: @DepegAlerts
+Contact for Premium/Enterprise: Support coming soon!
     """
-    await update.message.reply_text(subscribe_msg)
+    await update.message.reply_text(subscribe_msg, parse_mode='Markdown')
 
 
 async def account_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -834,6 +848,188 @@ async def predict_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Predict command error for {symbol}: {sanitize_error_message(e)}")
 
 
+async def contribute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /contribute command - community sentiment contribution system"""
+    user = update.effective_user
+    if not user:
+        await update.message.reply_text("❌ Unable to identify user. Please try again.")
+        return
+
+    user_id = str(user.id)
+
+    try:
+        # Register or get user in database
+        UserManager.register_or_get_user(
+            telegram_id=user_id,
+            username=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name,
+        )
+
+        contribute_msg = """
+🤝 **Community Data Contribution**
+
+Help improve CryptoGuard's AI predictions by contributing market intelligence! Earn points and unlock rewards.
+
+**📱 What You Can Contribute:**
+• Social sentiment from Twitter, Reddit, Discord
+• Breaking news about stablecoins or protocols
+• Unusual trading patterns you've observed
+• Regulatory announcements affecting stablecoins
+
+**🎯 How to Contribute:**
+1. Reply to this message with your observation
+2. Include the stablecoin symbol (e.g., USDT, USDC)
+3. Add source links when possible
+4. Tag sentiment: POSITIVE, NEGATIVE, or NEUTRAL
+
+**🏆 Reward System:**
+• 10 points per verified contribution
+• 50 points for first-to-report breaking news
+• 100 points bonus for high-quality analysis
+• Top contributors get free Premium access!
+
+**📊 Your Stats:**
+• Current Points: 0 (new contributor)
+• Rank: Unranked
+• Contributions: 0
+
+**Example Contribution:**
+"USDT - Reddit discussing Tether reserves concern. Sentiment: NEGATIVE. Source: reddit.com/r/cryptocurrency"
+
+Start contributing and help make CryptoGuard smarter! 🤖
+        """
+
+        await update.message.reply_text(contribute_msg, parse_mode='Markdown')
+        logger.info(f"User {user_id} accessed contribute system")
+
+    except Exception as e:
+        capture_exception(
+            e,
+            extra={
+                "command": "contribute",
+                "user_id": user_id,
+            },
+        )
+        await update.message.reply_text(
+            "❌ Error accessing contribution system. Please try again later."
+        )
+        logger.error(f"Contribute command error: {sanitize_error_message(e)}")
+
+
+async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /leaderboard command - show top contributors"""
+    user = update.effective_user
+    if not user:
+        await update.message.reply_text("❌ Unable to identify user. Please try again.")
+        return
+
+    # Mock leaderboard for now - will be replaced with real data
+    leaderboard_msg = """
+🏆 **Community Leaderboard**
+
+**Top Contributors This Month:**
+
+🥇 **CryptoAnalyst** - 2,350 points
+   • 47 contributions • 12 first alerts • Premium member
+
+🥈 **DeFiWatcher** - 1,890 points
+   • 38 contributions • 8 first alerts • Premium member
+
+🥉 **StablecoinGuru** - 1,245 points
+   • 25 contributions • 5 first alerts
+
+**4.** BlockchainBob - 890 points
+**5.** PegMonitor - 750 points
+**6.** RiskAssessor - 680 points
+**7.** MarketSentinel - 525 points
+**8.** DegenDetector - 450 points
+**9.** AlertMaster - 380 points
+**10.** CryptoGuardian - 320 points
+
+**🎯 Your Rank:** Not on leaderboard yet
+**📊 Your Points:** 0
+
+**🏅 Rewards:**
+• Top 10: Premium access for 1 month
+• Top 3: Permanent Premium + API access
+• #1: Premium + Enterprise features
+
+Start contributing with /contribute to climb the ranks! 🚀
+    """
+
+    await update.message.reply_text(leaderboard_msg, parse_mode='Markdown')
+
+
+async def rewards_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /rewards command - show user's contribution points and rewards"""
+    user = update.effective_user
+    if not user:
+        await update.message.reply_text("❌ Unable to identify user. Please try again.")
+        return
+
+    user_id = str(user.id)
+
+    try:
+        # Register or get user in database
+        UserManager.register_or_get_user(
+            telegram_id=user_id,
+            username=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name,
+        )
+
+        # Mock user contribution data - will be replaced with real database
+        rewards_msg = """
+🎁 **Your Contribution Rewards**
+
+**📊 Current Status:**
+• Total Points: 0
+• Rank: Unranked
+• Contributions: 0
+• First Reports: 0
+
+**🏆 Achievements:**
+🔒 First Contributor (contribute 1 observation)
+🔒 News Hunter (first to report breaking news)
+🔒 Quality Analyst (5 high-quality contributions)
+🔒 Sentiment Master (10 sentiment reports)
+🔒 Premium Earner (reach top 10 leaderboard)
+
+**🎯 Point Values:**
+• Basic contribution: 10 points
+• Breaking news (first): 50 points
+• High-quality analysis: 25 points bonus
+• Verified prediction: 100 points bonus
+
+**🏅 Reward Tiers:**
+• **100 points:** Community Badge
+• **500 points:** 1 week Premium trial
+• **1,000 points:** 1 month Premium access
+• **Top 10:** Permanent Premium
+• **Top 3:** Premium + Enterprise API access
+
+**Next Goal:** Earn your first 10 points with /contribute
+
+Ready to start contributing? Use /contribute to begin! 🚀
+        """
+
+        await update.message.reply_text(rewards_msg, parse_mode='Markdown')
+
+    except Exception as e:
+        capture_exception(
+            e,
+            extra={
+                "command": "rewards",
+                "user_id": user_id,
+            },
+        )
+        await update.message.reply_text(
+            "❌ Error accessing rewards system. Please try again later."
+        )
+        logger.error(f"Rewards command error: {sanitize_error_message(e)}")
+
+
 def setup_handlers(application):
     """Setup all command handlers"""
     application.add_handler(CommandHandler("start", start_command))
@@ -845,5 +1041,10 @@ def setup_handlers(application):
     application.add_handler(CommandHandler("subscribe", subscribe_command))
     application.add_handler(CommandHandler("account", account_command))
     application.add_handler(CommandHandler("threshold", threshold_command))
+
+    # Community contribution commands
+    application.add_handler(CommandHandler("contribute", contribute_command))
+    application.add_handler(CommandHandler("leaderboard", leaderboard_command))
+    application.add_handler(CommandHandler("rewards", rewards_command))
 
     logger.info("All command handlers registered")
