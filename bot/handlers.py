@@ -18,6 +18,16 @@ from core.sentry_config import add_breadcrumb, capture_exception, set_user_conte
 from core.user_manager import UserManager
 from core.ai_predictor import depeg_predictor, sentiment_analyzer
 from core.models import SubscriptionTier
+from core.database import get_db_session
+from core.db_models import (
+    ContributionType,
+    get_leaderboard,
+    get_user_stats,
+    record_user_contribution,
+    award_points_for_contribution,
+    get_user_by_telegram_id,
+    create_user,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -924,41 +934,68 @@ async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("❌ Unable to identify user. Please try again.")
         return
 
-    # Mock leaderboard for now - will be replaced with real data
-    leaderboard_msg = """
-🏆 **Community Leaderboard**
+    try:
+        with get_db_session() as session:
+            # Get leaderboard data from database
+            leaderboard_data = get_leaderboard(session, limit=10, timeframe="total")
 
-**Top Contributors This Month:**
+            # Get current user's rank and stats
+            db_user = get_user_by_telegram_id(session, str(user.id))
+            user_stats = None
+            if db_user:
+                user_stats = get_user_stats(session, db_user.id)
 
-🥇 **CryptoAnalyst** - 2,350 points
-   • 47 contributions • 12 first alerts • Premium member
+        # Build leaderboard message
+        leaderboard_msg = "🏆 **Community Leaderboard**\n\n**Top Contributors This Month:**\n\n"
 
-🥈 **DeFiWatcher** - 1,890 points
-   • 38 contributions • 8 first alerts • Premium member
+        if not leaderboard_data:
+            leaderboard_msg += "No contributors yet! Be the first to start earning points.\n\n"
+        else:
+            # Add top contributors
+            medal_emojis = {1: "🥇", 2: "🥈", 3: "🥉"}
 
-🥉 **StablecoinGuru** - 1,245 points
-   • 25 contributions • 5 first alerts
+            for entry in leaderboard_data:
+                rank = entry["rank"]
+                medal = medal_emojis.get(rank, f"**{rank}.**")
+                username = entry["username"]
+                points = entry["total_points"]
+                contributions = entry["contribution_count"]
+                tier = entry["tier"]
 
-**4.** BlockchainBob - 890 points
-**5.** PegMonitor - 750 points
-**6.** RiskAssessor - 680 points
-**7.** MarketSentinel - 525 points
-**8.** DegenDetector - 450 points
-**9.** AlertMaster - 380 points
-**10.** CryptoGuardian - 320 points
+                if rank <= 3:
+                    leaderboard_msg += f"{medal} **{username}** - {points:,} points\n"
+                    leaderboard_msg += f"   • {contributions} contributions • {tier.title()} member\n\n"
+                else:
+                    leaderboard_msg += f"{medal} {username} - {points:,} points\n"
 
-**🎯 Your Rank:** Not on leaderboard yet
-**📊 Your Points:** 0
+        # Add user's current position
+        if user_stats:
+            if user_stats["total_points"] > 0:
+                leaderboard_msg += f"**🎯 Your Rank:** #{user_stats['global_rank']}\n"
+                leaderboard_msg += f"**📊 Your Points:** {user_stats['total_points']:,}\n"
+                leaderboard_msg += f"**📈 Contributions:** {user_stats['contribution_count']}\n\n"
+            else:
+                leaderboard_msg += "**🎯 Your Rank:** Not ranked yet\n"
+                leaderboard_msg += "**📊 Your Points:** 0\n\n"
+        else:
+            leaderboard_msg += "**🎯 Your Rank:** Not on leaderboard yet\n"
+            leaderboard_msg += "**📊 Your Points:** 0\n\n"
 
-**🏅 Rewards:**
+        # Add rewards info
+        leaderboard_msg += """**🏅 Rewards:**
 • Top 10: Premium access for 1 month
 • Top 3: Permanent Premium + API access
 • #1: Premium + Enterprise features
 
-Start contributing with /contribute to climb the ranks! 🚀
-    """
+Start contributing with /contribute to climb the ranks! 🚀"""
 
-    await update.message.reply_text(leaderboard_msg, parse_mode='Markdown')
+        await update.message.reply_text(leaderboard_msg, parse_mode='Markdown')
+
+    except Exception as e:
+        logger.error(f"Error in leaderboard command: {e}")
+        await update.message.reply_text(
+            "❌ Sorry, there was an error retrieving the leaderboard. Please try again later."
+        )
 
 
 async def rewards_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -979,22 +1016,91 @@ async def rewards_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             last_name=user.last_name,
         )
 
-        # Mock user contribution data - will be replaced with real database
-        rewards_msg = """
-🎁 **Your Contribution Rewards**
+        # Get real user statistics from database
+        with get_db_session() as session:
+            db_user = get_user_by_telegram_id(session, user_id)
+            if not db_user:
+                # Create user if not found
+                db_user = create_user(session, user_id,
+                                    username=user.username,
+                                    first_name=user.first_name,
+                                    last_name=user.last_name)
+
+            user_stats = get_user_stats(session, db_user.id)
+
+        # Build rewards message with real data
+        if user_stats:
+            total_points = user_stats["total_points"]
+            rank = user_stats["global_rank"]
+            contributions = user_stats["contribution_count"]
+            streak = user_stats["streak_days"]
+            tier = user_stats["tier"]
+
+            # Determine rank display
+            if total_points > 0:
+                rank_display = f"#{rank}"
+            else:
+                rank_display = "Unranked"
+
+            # Generate achievements based on actual data
+            achievements = []
+            if contributions >= 1:
+                achievements.append("✅ First Contributor (contribute 1 observation)")
+            else:
+                achievements.append("🔒 First Contributor (contribute 1 observation)")
+
+            if contributions >= 5:
+                achievements.append("✅ Quality Analyst (5 high-quality contributions)")
+            else:
+                achievements.append("🔒 Quality Analyst (5 high-quality contributions)")
+
+            if contributions >= 10:
+                achievements.append("✅ Sentiment Master (10 contributions)")
+            else:
+                achievements.append("🔒 Sentiment Master (10 contributions)")
+
+            if rank <= 10 and total_points > 0:
+                achievements.append("✅ Premium Earner (reach top 10 leaderboard)")
+            else:
+                achievements.append("🔒 Premium Earner (reach top 10 leaderboard)")
+
+            # Determine next goal
+            if total_points == 0:
+                next_goal = "Earn your first 10 points with /contribute"
+            elif total_points < 100:
+                next_goal = f"Reach 100 points for Community Badge ({100 - total_points} points to go)"
+            elif total_points < 500:
+                next_goal = f"Reach 500 points for Premium trial ({500 - total_points} points to go)"
+            elif total_points < 1000:
+                next_goal = f"Reach 1,000 points for Premium access ({1000 - total_points} points to go)"
+            else:
+                next_goal = "All major milestones achieved! Keep contributing to maintain your rank."
+
+        else:
+            total_points = 0
+            rank_display = "Unranked"
+            contributions = 0
+            streak = 0
+            tier = "free"
+            achievements = [
+                "🔒 First Contributor (contribute 1 observation)",
+                "🔒 Quality Analyst (5 high-quality contributions)",
+                "🔒 Sentiment Master (10 contributions)",
+                "🔒 Premium Earner (reach top 10 leaderboard)"
+            ]
+            next_goal = "Earn your first 10 points with /contribute"
+
+        rewards_msg = f"""🎁 **Your Contribution Rewards**
 
 **📊 Current Status:**
-• Total Points: 0
-• Rank: Unranked
-• Contributions: 0
-• First Reports: 0
+• Total Points: {total_points:,}
+• Rank: {rank_display}
+• Contributions: {contributions}
+• Streak: {streak} days
+• Tier: {tier.title()}
 
 **🏆 Achievements:**
-🔒 First Contributor (contribute 1 observation)
-🔒 News Hunter (first to report breaking news)
-🔒 Quality Analyst (5 high-quality contributions)
-🔒 Sentiment Master (10 sentiment reports)
-🔒 Premium Earner (reach top 10 leaderboard)
+{chr(10).join(achievements)}
 
 **🎯 Point Values:**
 • Basic contribution: 10 points
@@ -1009,10 +1115,9 @@ async def rewards_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • **Top 10:** Permanent Premium
 • **Top 3:** Premium + Enterprise API access
 
-**Next Goal:** Earn your first 10 points with /contribute
+**Next Goal:** {next_goal}
 
-Ready to start contributing? Use /contribute to begin! 🚀
-        """
+Ready to start contributing? Use /contribute to begin! 🚀"""
 
         await update.message.reply_text(rewards_msg, parse_mode='Markdown')
 
@@ -1074,54 +1179,102 @@ async def process_user_contribution(update: Update, context: ContextTypes.DEFAUL
             last_name=user.last_name,
         )
 
-        # Simple contribution processing (mock for now)
-        # In production, this would analyze the text and store in database
+        # Store contribution in database and calculate real points
+        with get_db_session() as session:
+            # Get or create user
+            db_user = get_user_by_telegram_id(session, user_id)
+            if not db_user:
+                db_user = create_user(session, user_id,
+                                    username=user.username,
+                                    first_name=user.first_name,
+                                    last_name=user.last_name)
 
-        # Extract stablecoin symbol
-        stablecoins = ['USDT', 'USDC', 'DAI', 'USDS', 'FRAX', 'TUSD', 'USDP', 'PYUSD']
-        mentioned_coins = [coin for coin in stablecoins if coin in contribution_text.upper()]
+            # Extract stablecoin symbol
+            stablecoins = ['USDT', 'USDC', 'DAI', 'USDS', 'FRAX', 'TUSD', 'USDP', 'PYUSD']
+            mentioned_coins = [coin for coin in stablecoins if coin in contribution_text.upper()]
 
-        # Extract sentiment
-        sentiment = "NEUTRAL"
-        text_upper = contribution_text.upper()
-        if any(word in text_upper for word in ['POSITIVE', 'GOOD', 'BULLISH', 'STRONG']):
-            sentiment = "POSITIVE"
-        elif any(word in text_upper for word in ['NEGATIVE', 'BAD', 'BEARISH', 'WEAK', 'CONCERN']):
-            sentiment = "NEGATIVE"
+            # Extract sentiment and calculate scores
+            sentiment = "NEUTRAL"
+            sentiment_score = 0.0
+            text_upper = contribution_text.upper()
 
-        # Mock point calculation
-        base_points = 10
-        quality_bonus = 5 if len(contribution_text) > 30 else 0
-        symbol_bonus = 5 if mentioned_coins else 0
-        total_points = base_points + quality_bonus + symbol_bonus
+            if any(word in text_upper for word in ['POSITIVE', 'GOOD', 'BULLISH', 'STRONG']):
+                sentiment = "POSITIVE"
+                sentiment_score = 0.7
+            elif any(word in text_upper for word in ['NEGATIVE', 'BAD', 'BEARISH', 'WEAK', 'CONCERN']):
+                sentiment = "NEGATIVE"
+                sentiment_score = -0.7
 
-        # Send acknowledgment
-        response = f"""
-🎉 **Contribution Received!**
+            # Calculate quality and relevance scores
+            quality_score = min(1.0, len(contribution_text) / 100.0)  # Length indicates effort
+            relevance_score = 0.8 if mentioned_coins else 0.3  # Higher relevance if mentions coins
+
+            # Determine contribution type
+            contribution_type = ContributionType.GENERAL_INFO
+            if mentioned_coins and sentiment != "NEUTRAL":
+                contribution_type = ContributionType.SENTIMENT_FEEDBACK
+            elif "NEWS" in text_upper or "BREAKING" in text_upper:
+                contribution_type = ContributionType.NEWS_SHARE
+            elif any(word in text_upper for word in ['PRICE', 'TRADING', 'VOLUME', 'MARKET']):
+                contribution_type = ContributionType.MARKET_INSIGHT
+
+            # Store contribution in database
+            contribution = record_user_contribution(
+                session,
+                user_id=db_user.id,
+                content=contribution_text,
+                contribution_type=contribution_type,
+                stablecoin_symbol=mentioned_coins[0] if mentioned_coins else None,
+                sentiment_score=sentiment_score,
+                quality_score=quality_score,
+                relevance_score=relevance_score,
+                source_message_id=str(update.message.message_id)
+            )
+
+            # Calculate points based on AI analysis
+            base_points = 10
+            quality_bonus = int(quality_score * 15)  # Up to 15 bonus for high quality
+            relevance_bonus = int(relevance_score * 10)  # Up to 10 bonus for relevance
+            sentiment_bonus = 5 if sentiment != "NEUTRAL" else 0
+            total_points = base_points + quality_bonus + relevance_bonus + sentiment_bonus
+
+            # Award points to user
+            user_points = award_points_for_contribution(session, db_user.id, total_points)
+
+            # Get updated user stats
+            updated_stats = get_user_stats(session, db_user.id)
+
+        # Send acknowledgment with real data
+        response = f"""🎉 **Contribution Received!**
 
 **Your Analysis:**
 • Text: "{contribution_text[:100]}{'...' if len(contribution_text) > 100 else ''}"
+• Type: {contribution_type.value.replace('_', ' ').title()}
 • Detected Coins: {', '.join(mentioned_coins) if mentioned_coins else 'None detected'}
 • Sentiment: {sentiment}
+
+**AI Quality Assessment:**
+• Relevance: {relevance_score:.1%}
+• Quality: {quality_score:.1%}
 
 **Points Earned:**
 • Base contribution: {base_points} points
 • Quality bonus: {quality_bonus} points
-• Symbol detection: {symbol_bonus} points
+• Relevance bonus: {relevance_bonus} points
+• Sentiment bonus: {sentiment_bonus} points
 • **Total: +{total_points} points** 🏆
 
 **Updated Stats:**
-• Total Points: {total_points} (new contributor)
-• Rank: Contributing
-• Next Goal: 100 points for Community Badge
+• Total Points: {updated_stats['total_points']:,}
+• Global Rank: #{updated_stats['global_rank']}
+• Contributions: {updated_stats['contribution_count']}
 
 Thank you for helping improve CryptoGuard's AI! 🤖
 
-Use /rewards to see your full contribution history.
-        """
+Use /rewards to see your full contribution history."""
 
         await update.message.reply_text(response, parse_mode='Markdown')
-        logger.info(f"Processed contribution from user {user_id}: {total_points} points")
+        logger.info(f"Processed contribution from user {user_id}: {total_points} points, stored in database")
 
     except Exception as e:
         capture_exception(
