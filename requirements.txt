@@ -28,6 +28,11 @@ structlog>=23.0.0
 # Data Validation
 pydantic>=2.5.0
 
+# AI/ML Dependencies (CryptoGuard Enhancement)
+numpy>=1.21.0           # ML calculations and array operations
+pandas>=1.3.0           # Data manipulation and analysis
+scikit-learn>=1.0.0     # Machine learning models
+
 # Async Database Operations
 asyncpg>=0.29.0         # Async PostgreSQL driver
 databases>=0.8.0        # Async database interface
