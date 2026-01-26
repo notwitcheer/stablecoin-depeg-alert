@@ -16,6 +16,8 @@ from core.security import (
 )
 from core.sentry_config import add_breadcrumb, capture_exception, set_user_context
 from core.user_manager import UserManager
+from core.ai_predictor import depeg_predictor, sentiment_analyzer
+from core.models import SubscriptionTier
 
 logger = logging.getLogger(__name__)
 
@@ -40,17 +42,21 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         set_user_context(str(user.id), user.username, user_tier)
 
         welcome_msg = f"""
-🔔 Welcome to DepegAlert Bot{', ' + user.first_name if user.first_name else ''}!
+🤖 Welcome to CryptoGuard AI{', ' + user.first_name if user.first_name else ''}!
 
-I monitor stablecoin pegs 24/7 and alert you when something goes wrong.
+I'm an AI-powered stablecoin monitoring system that predicts depeg events before they happen. I monitor 39+ stablecoins 24/7 with advanced risk assessment.
 
-📊 Commands:
-/status - Check all stablecoin pegs now
-/check USDC - Check specific stablecoin
-/subscribe - Get alerts in our channel
-/help - Show all commands
+🧠 **AI Features:**
+/risk USDT - Get AI risk assessment
+/predict USDC 24h - Depeg predictions
+/status - Check all stablecoin pegs
+
+📱 **Get Started:**
+/help - See all commands
+/subscribe - Join our alert channel
 /account - View your account info
 
+🚀 *Powered by Ralph MCP AI Enhancement*
 """
 
         # Add tier-specific information
@@ -338,10 +344,17 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     help_text = """
-🔔 DepegAlert Bot Commands:
+🤖 CryptoGuard AI-Powered Bot Commands:
 
+📊 **Basic Commands:**
 /status - Check all stablecoin pegs
 /check SYMBOL - Check specific stablecoin (e.g. /check USDC)
+
+🧠 **AI Features:**
+/risk SYMBOL - Get AI risk assessment (e.g. /risk USDT)
+/predict SYMBOL [1h|6h|24h] - AI depeg predictions
+
+ℹ️ **Account & Support:**
 /account - View your account information
 /subscribe - Join our alert channel
 /help - Show this help message
@@ -561,11 +574,273 @@ async def threshold_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def risk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /risk command - show AI risk assessment for a stablecoin"""
+    user = update.effective_user
+    if not user:
+        await update.message.reply_text("❌ Unable to identify user. Please try again.")
+        return
+
+    user_id = str(user.id)
+
+    # Check rate limiting
+    if is_rate_limited(user_id):
+        await update.message.reply_text(
+            "⏱️ Please wait a moment before using this command again."
+        )
+        return
+
+    args = context.args
+    if not args:
+        await update.message.reply_text(
+            "📊 AI Risk Assessment\n\n"
+            "Usage: /risk SYMBOL\n"
+            "Example: /risk USDT\n\n"
+            "Supported coins: USDT, USDC, DAI, USDS, FRAX, TUSD, USDP, PYUSD"
+        )
+        return
+
+    symbol = args[0].upper()
+
+    # Validate symbol
+    if not validate_stablecoin_symbol(symbol):
+        await update.message.reply_text(
+            f"❌ Unknown stablecoin: {symbol}\n\n"
+            "Supported coins: USDT, USDC, DAI, USDS, FRAX, TUSD, USDP, PYUSD"
+        )
+        return
+
+    try:
+        # Get current price and historical data
+        from core.peg_checker import check_specific_peg
+        from core.prices import fetch_historical_prices
+        from core.stablecoins import get_stablecoin_by_symbol
+
+        await update.message.reply_text(f"🤖 Analyzing {symbol} with AI models...")
+
+        # Get stablecoin info
+        stable_def = get_stablecoin_by_symbol(symbol)
+        if not stable_def:
+            await update.message.reply_text(f"❌ Could not find data for {symbol}")
+            return
+
+        # Get current peg status
+        peg_data = await check_specific_peg(symbol)
+        if not peg_data:
+            await update.message.reply_text(f"❌ Could not fetch current data for {symbol}")
+            return
+
+        # Get historical prices for AI analysis
+        historical_prices = await fetch_historical_prices(stable_def.coingecko_id, days=7)
+
+        # Get social sentiment
+        social_sentiment = await sentiment_analyzer.analyze_stablecoin_sentiment(symbol)
+
+        # Generate AI risk assessment (works with or without historical data)
+        risk_assessment = await depeg_predictor.predict_depeg_probability(
+            symbol,
+            historical_prices=historical_prices,  # May be None/empty due to API limits
+            current_volume=float(peg_data.price) * 1000000,  # Simplified volume
+            social_sentiment=social_sentiment
+        )
+
+        # Format response
+        response = f"🤖 **CryptoGuard AI Risk Assessment**\n\n"
+        response += f"**{symbol}** ({stable_def.name})\n"
+        response += f"💰 Price: ${float(peg_data.price):.4f}\n"
+        response += f"📊 Deviation: {peg_data.deviation_percent:+.2f}%\n"
+        response += f"🎯 Status: {peg_data.status.value.title()}\n\n"
+
+        if risk_assessment:
+            # AI Risk Analysis
+            response += f"🧠 **AI Risk Analysis**\n"
+            response += f"⚠️ Risk Score: {risk_assessment.risk_score:.1f}/100\n"
+            response += f"🎯 Risk Level: {risk_assessment.risk_level.value.title()}\n"
+            response += f"🎲 Confidence: {risk_assessment.confidence:.1f}%\n"
+            response += f"⏱️ Timeframe: {risk_assessment.prediction_horizon}\n\n"
+
+            # Key factors
+            if risk_assessment.contributing_factors:
+                response += f"📈 **Key Risk Factors**\n"
+                factors = risk_assessment.contributing_factors
+                for factor, value in factors.items():
+                    if isinstance(value, (int, float)):
+                        response += f"• {factor.replace('_', ' ').title()}: {value:.1f}\n"
+        else:
+            response += f"⚠️ **Limited Analysis** (using basic model)\n"
+            response += f"📊 Price-based risk: {abs(peg_data.deviation_percent) * 20:.1f}/100\n\n"
+
+        if social_sentiment:
+            response += f"📱 **Social Sentiment**\n"
+            response += f"💬 Score: {social_sentiment.sentiment_score:+.1f}/100\n"
+            response += f"📢 Mentions: {social_sentiment.mention_count}\n"
+            response += f"😨 Fear/Greed: {social_sentiment.fear_greed_index:.0f}/100\n\n"
+
+        response += f"🕐 Analysis time: {peg_data.last_updated.strftime('%H:%M UTC')}\n"
+        response += f"🤖 *Powered by CryptoGuard AI*"
+
+        await update.message.reply_text(response)
+        logger.info(f"Risk assessment provided for {symbol} to user {user_id}")
+
+    except Exception as e:
+        capture_exception(
+            e,
+            extra={
+                "command": "risk",
+                "user_id": user_id,
+                "symbol": symbol,
+            },
+        )
+        await update.message.reply_text(
+            f"❌ Error analyzing {symbol}. Please try again later."
+        )
+        logger.error(f"Risk command error for {symbol}: {sanitize_error_message(e)}")
+
+
+async def predict_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /predict command - show AI depeg predictions"""
+    user = update.effective_user
+    if not user:
+        await update.message.reply_text("❌ Unable to identify user. Please try again.")
+        return
+
+    user_id = str(user.id)
+
+    # Check rate limiting
+    if is_rate_limited(user_id):
+        await update.message.reply_text(
+            "⏱️ Please wait a moment before using this command again."
+        )
+        return
+
+    args = context.args
+    if not args:
+        await update.message.reply_text(
+            "🔮 AI Depeg Predictions\n\n"
+            "Usage: /predict SYMBOL [timeframe]\n"
+            "Example: /predict USDT 24h\n\n"
+            "Timeframes: 1h, 6h, 24h (default: 24h)\n"
+            "Supported coins: USDT, USDC, DAI, USDS, FRAX, TUSD, USDP, PYUSD"
+        )
+        return
+
+    symbol = args[0].upper()
+    timeframe = args[1] if len(args) > 1 else "24h"
+
+    # Validate inputs
+    if not validate_stablecoin_symbol(symbol):
+        await update.message.reply_text(
+            f"❌ Unknown stablecoin: {symbol}\n\n"
+            "Supported coins: USDT, USDC, DAI, USDS, FRAX, TUSD, USDP, PYUSD"
+        )
+        return
+
+    if timeframe not in ["1h", "6h", "24h"]:
+        await update.message.reply_text(
+            f"❌ Invalid timeframe: {timeframe}\n\n"
+            "Valid options: 1h, 6h, 24h"
+        )
+        return
+
+    try:
+        from core.prices import fetch_historical_prices
+        from core.stablecoins import get_stablecoin_by_symbol
+
+        await update.message.reply_text(f"🔮 Generating {timeframe} prediction for {symbol}...")
+
+        # Get stablecoin info
+        stable_def = get_stablecoin_by_symbol(symbol)
+        if not stable_def:
+            await update.message.reply_text(f"❌ Could not find data for {symbol}")
+            return
+
+        # Get historical prices for prediction
+        historical_prices = await fetch_historical_prices(stable_def.coingecko_id, days=7)
+
+        # Get social sentiment
+        social_sentiment = await sentiment_analyzer.analyze_stablecoin_sentiment(symbol)
+
+        # Generate prediction (works with or without historical data)
+        risk_assessment = await depeg_predictor.predict_depeg_probability(
+            symbol,
+            historical_prices=historical_prices,  # May be None/empty due to API limits
+            current_volume=1000000,  # Simplified volume
+            social_sentiment=social_sentiment,
+            horizon=timeframe
+        )
+
+        # Format prediction response
+        response = f"🔮 **CryptoGuard AI Prediction**\n\n"
+        response += f"**{symbol}** - {timeframe} Forecast\n\n"
+
+        # Risk probability
+        depeg_probability = risk_assessment.risk_score / 100.0
+        response += f"⚠️ Depeg Probability: {depeg_probability:.1%}\n"
+        response += f"🎯 Risk Level: {risk_assessment.risk_level.value.title()}\n"
+        response += f"🎲 Model Confidence: {risk_assessment.confidence:.1f}%\n\n"
+
+        # Risk interpretation
+        if depeg_probability < 0.1:
+            interpretation = "🟢 **Very Low Risk** - Stable conditions expected"
+        elif depeg_probability < 0.25:
+            interpretation = "🟡 **Low Risk** - Minor volatility possible"
+        elif depeg_probability < 0.5:
+            interpretation = "🟠 **Medium Risk** - Monitor closely"
+        elif depeg_probability < 0.75:
+            interpretation = "🔴 **High Risk** - Significant concern"
+        else:
+            interpretation = "🚨 **Critical Risk** - Immediate attention needed"
+
+        response += f"{interpretation}\n\n"
+
+        # Key factors driving prediction
+        if risk_assessment.contributing_factors:
+            response += f"📈 **Key Prediction Factors**\n"
+            factors = risk_assessment.contributing_factors
+            for factor, value in list(factors.items())[:3]:  # Show top 3
+                if isinstance(value, (int, float)):
+                    response += f"• {factor.replace('_', ' ').title()}: {value:.1f}\n"
+            response += "\n"
+
+        if social_sentiment and social_sentiment.sentiment_score != 0:
+            response += f"📱 **Social Sentiment Impact**\n"
+            if social_sentiment.sentiment_score > 0:
+                response += f"🟢 Positive sentiment ({social_sentiment.sentiment_score:+.0f}) supports stability\n"
+            else:
+                response += f"🔴 Negative sentiment ({social_sentiment.sentiment_score:+.0f}) increases risk\n"
+            response += "\n"
+
+        response += f"⏱️ Prediction valid for: {timeframe}\n"
+        response += f"🕐 Generated: {risk_assessment.timestamp.strftime('%H:%M UTC')}\n"
+        response += f"🤖 *CryptoGuard Predictive AI*\n\n"
+        response += f"💡 *This is not financial advice. Use for informational purposes only.*"
+
+        await update.message.reply_text(response)
+        logger.info(f"Prediction provided for {symbol} ({timeframe}) to user {user_id}")
+
+    except Exception as e:
+        capture_exception(
+            e,
+            extra={
+                "command": "predict",
+                "user_id": user_id,
+                "symbol": symbol,
+                "timeframe": timeframe,
+            },
+        )
+        await update.message.reply_text(
+            f"❌ Error generating prediction for {symbol}. Please try again later."
+        )
+        logger.error(f"Predict command error for {symbol}: {sanitize_error_message(e)}")
+
+
 def setup_handlers(application):
     """Setup all command handlers"""
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("status", status_command))
     application.add_handler(CommandHandler("check", check_command))
+    application.add_handler(CommandHandler("risk", risk_command))
+    application.add_handler(CommandHandler("predict", predict_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("subscribe", subscribe_command))
     application.add_handler(CommandHandler("account", account_command))

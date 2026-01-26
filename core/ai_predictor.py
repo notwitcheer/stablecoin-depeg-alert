@@ -48,8 +48,8 @@ class DepegPredictor:
     async def predict_depeg_probability(
         self,
         stablecoin_symbol: str,
-        historical_prices: List[float],
-        current_volume: float,
+        historical_prices: Optional[List[float]] = None,
+        current_volume: Optional[float] = None,
         social_sentiment: Optional[SocialSentiment] = None,
         horizon: str = "24h"
     ) -> RiskAssessment:
@@ -67,6 +67,12 @@ class DepegPredictor:
             RiskAssessment with probability, confidence, and feature importance
         """
         try:
+            # Handle missing data gracefully (API limitations)
+            if not historical_prices:
+                historical_prices = []
+            if current_volume is None:
+                current_volume = 0.0
+
             # Feature engineering
             features = await self._extract_features(
                 stablecoin_symbol,
